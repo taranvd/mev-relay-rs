@@ -2,7 +2,7 @@
 name = "relay-entity"
 version.workspace = true
 rust-version.workspace = true
-edition = "2021"
+edition.workspace = true
 repository.workspace = true
 
 [dependencies]
@@ -10,9 +10,9 @@ alloy-primitives.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 ethereum_ssz.workspace = true
-ethereum_ssz_derive = "0.10"
+ethereum_ssz_derive.workspace = true
 tree_hash.workspace = true
 tree_hash_derive.workspace = true
-ethereum_serde_utils = "0.5"
+ethereum_serde_utils.workspace = true
 serde_json.workspace = true
 
