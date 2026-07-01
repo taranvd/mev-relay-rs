@@ -1,6 +1,142 @@
+[profile.release]
+lto = "thin"
+strip = "debuginfo"
+
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+incremental = false
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/api",
+    "crates/app",
+    "crates/datastore",
+    "crates/entity",
+    "crates/gateway",
+    "crates/health",
+    "crates/metrics",
+    "crates/usecase"
+]
+
+[workspace.package]
+authors = ["Vladyslav Taran <vladyslav.taran@cowchain.io"]
+version = "0.1.0"
+rust-version = "1.94.0"
+edition = "2024"
+repository = "https://github.com/taranvd/mev-relay-rs"
+
+[workspace.dependencies]
+
+relay-api = { path = "crates/api" }
+relay-app = { path = "crates/app" }
+relay-datastore = { path = "crates/datastore" }
+relay-entity = { path = "crates/entity" }
+relay-gateway = { path = "crates/gateway" }
+relay-health = { path = "crates/health" }
+relay-metrics = { path = "crates/metrics" }
+relay-usecase = { path = "crates/usecase" }
+
+
+
+# Error Handling
+thiserror = "2.0"
+
+# Async
+tokio = { version = "1.40", features = ["full", "tracing"] }
+tokio-util = "0.7"
+tokio-stream = { version = "0.1", features = ["sync"] }
+tonic = { version = "0.12", features = ["prost", "transport"] }
+tonic-build = "0.12"
+tonic-health = "0.12"
+async-stream = "0.3"
+futures = "0.3"
+
+# Logging
+tracing = { version = "0.1", features = ["default", "std", "attributes", "log"] }
+tracing-subscriber = { version = "0.3", features = ["default", "registry", "std", "fmt", "env-filter"] }
+tracing-core = "0.1"
+tracing-appender = "0.2"
+
+# OpenTelemetry
+opentelemetry = { version = "0.26.0", features = ["default", "trace", "metrics"] }
+opentelemetry_sdk = { version = "0.26.0", features = ["default", "trace", "metrics", "rt-tokio"] }
+opentelemetry-stdout = { version = "0.26.0", features = ["default", "trace", "metrics"] }
+opentelemetry-otlp = { version = "0.26.0", features = ["default", "trace", "metrics"] }
+opentelemetry-semantic-conventions = { version = "0.26" }
+tracing-opentelemetry = { version = "0.27.0", features = ["default", "metrics"] }
+
+# Traits
+auto_impl = "1.2"
+async-trait = "0.1"
+
+# Auth
+jsonwebtoken = "9.3"
+
+# Network
+h2 = "0.4"
+bytes = "1.7"
+http = "1.1"
+http-body = "1.0"
+reqwest = "0.12.5"
+url = "2.2"
+
+# Hardware
+num_cpus = "1.16"
+
+# Utilities
+chrono = "0.4"
+tempfile = "3.13"
+idgenerator = "2.0.0"
+
+# Database
+moka = { version = "0.12", features = ["future"] }
+
+# Cli
+clap = {version = "4.5", features = ["default", "derive", "env"]}
+toml = "0.8"
+derive_more = {version = "1.0", features = ["full"]}
+warp = "0.3"
+
+
+# --- package metadata ---
 [package]
 name = "mev-relay-rs"
-version = "0.1.0"
-edition = "2024"
+authors.workspace = true
+readme = "README.md"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[[bin]]  # Define the binary target for the workspace
+name = "mev-relay-rs"
+path = "src/main.rs"
 
 [dependencies]
+
+# Relay workspace
+relay-app.workspace = true
+
+# Hardware
+num_cpus.workspace = true
+
+[dev-dependencies]
+# Relay workspace crates (for testing)
+relay-app.workspace = true
+relay-gateway.workspace = true
+relay-datastore.workspace = true
+relay-usecase.workspace = true
+relay-entity.workspace = true
+
+# Async (for asynchronous operations in tests)
+tokio.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+
+
+
+
+
