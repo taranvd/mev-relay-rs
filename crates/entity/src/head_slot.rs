@@ -12,9 +12,10 @@ impl HeadSlot {
         self.0 + 1 == proposal_slot
     }
 
-    /// Returns true if the event is the first slot of a new epoch.
-    /// This is used to refresh the proposer duties for the next epoch for slots: 1, 33, 65, 97, ...
-    pub fn is_first_slot_of_new_epoch(&self, slots_per_epoch: u64) -> bool {
+    /// Returns true if the slot is the designated slot to refresh proposer duties.
+    /// We intentionally refresh on the second slot of an epoch (1, 33, 65, 97...) 
+    /// to give the beacon node enough time to calculate duties for the next epoch.
+    pub fn is_duty_refresh_slot(&self, slots_per_epoch: u64) -> bool {
         self.0 % slots_per_epoch == 1
     }
     /// Returns the epoch number of the event from the slot number.
@@ -40,17 +41,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_first_slot_of_new_epoch_true() {
+    fn test_is_duty_refresh_slot_true() {
         let slots_per_epoch = 32;
         let slot = HeadSlot::from(33);
-        assert!(slot.is_first_slot_of_new_epoch(slots_per_epoch));
+        assert!(slot.is_duty_refresh_slot(slots_per_epoch));
     }
 
     #[test]
-    fn test_is_first_slot_of_new_epoch_false() {
+    fn test_is_duty_refresh_slot_false() {
         let slots_per_epoch = 32;
-        let slot = HeadSlot::from(34); // Not the first slot of an epoch
-        assert!(!slot.is_first_slot_of_new_epoch(slots_per_epoch));
+        let slot = HeadSlot::from(34); // Not the refresh slot
+        assert!(!slot.is_duty_refresh_slot(slots_per_epoch));
     }
 
     #[test]
