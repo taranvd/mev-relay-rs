@@ -3,14 +3,18 @@ use std::fmt;
 use std::str::FromStr;
 use tree_hash::{PackedEncoding, TreeHash};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct B256(pub alloy_primitives::B256);
 
 impl FromStr for B256 {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        alloy_primitives::B256::from_str(s).map(Self).map_err(|e| format!("{e:?}"))
+        alloy_primitives::B256::from_str(s)
+            .map(Self)
+            .map_err(|e| format!("{e:?}"))
     }
 }
 
@@ -29,14 +33,18 @@ impl TreeHash for B256 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct Address(pub alloy_primitives::Address);
 
 impl FromStr for Address {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        alloy_primitives::Address::from_str(s).map(Self).map_err(|e| format!("{e:?}"))
+        alloy_primitives::Address::from_str(s)
+            .map(Self)
+            .map_err(|e| format!("{e:?}"))
     }
 }
 
@@ -59,7 +67,9 @@ impl TreeHash for Address {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 #[serde(transparent)]
 pub struct U256(pub alloy_primitives::U256);
 

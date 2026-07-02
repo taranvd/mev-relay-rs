@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 /// The head slot of the latest block.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct HeadSlot(pub u64);
 
 impl HeadSlot {

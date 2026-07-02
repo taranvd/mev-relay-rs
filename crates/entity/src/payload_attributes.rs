@@ -1,7 +1,7 @@
 use crate::types::Address;
 use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]

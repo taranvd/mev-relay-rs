@@ -13,7 +13,11 @@ pub struct BlsSignature(pub(crate) blst::min_pk::Signature);
 
 impl std::fmt::Debug for BlsSignature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BlsSignature({})", alloy_primitives::hex::encode_prefixed(self.serialize()))
+        write!(
+            f,
+            "BlsSignature({})",
+            alloy_primitives::hex::encode_prefixed(self.serialize())
+        )
     }
 }
 
@@ -27,8 +31,7 @@ impl serde::Serialize for BlsSignature {
 impl<'de> serde::Deserialize<'de> for BlsSignature {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
-        let bytes = alloy_primitives::hex::decode(&s)
-            .map_err(serde::de::Error::custom)?;
+        let bytes = alloy_primitives::hex::decode(&s).map_err(serde::de::Error::custom)?;
         Self::deserialize(&bytes).map_err(serde::de::Error::custom)
     }
 }

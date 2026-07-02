@@ -1,7 +1,7 @@
 use crate::types::Address;
 use relay_crypto::{BlsPublicKey, BlsSignature, SignedRoot};
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use tree_hash_derive::TreeHash;
 
 #[serde_as]
@@ -34,8 +34,8 @@ impl SignedValidatorRegistration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tree_hash::TreeHash;
     use std::str::FromStr;
+    use tree_hash::TreeHash;
 
     #[test]
     fn test_validator_registration_tree_hash() {

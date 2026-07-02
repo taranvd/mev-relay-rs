@@ -1,17 +1,10 @@
 use crate::BlsSecretKey;
 use blst::min_pk::PublicKey;
-use serde::{Deserialize, Serialize};
 
 pub const PUBLIC_KEY_BYTES_LEN: usize = 48;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct BlsPublicKey(pub(crate) blst::min_pk::PublicKey);
-
-impl Default for BlsPublicKey {
-    fn default() -> Self {
-        Self(blst::min_pk::PublicKey::default())
-    }
-}
 
 impl BlsPublicKey {
     pub fn serialize(&self) -> [u8; PUBLIC_KEY_BYTES_LEN] {
@@ -51,8 +44,7 @@ impl serde::Serialize for BlsPublicKey {
 impl<'de> serde::Deserialize<'de> for BlsPublicKey {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
-        let bytes = alloy_primitives::hex::decode(&s)
-            .map_err(serde::de::Error::custom)?;
+        let bytes = alloy_primitives::hex::decode(&s).map_err(serde::de::Error::custom)?;
         Self::deserialize(&bytes).map_err(serde::de::Error::custom)
     }
 }

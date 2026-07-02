@@ -1,9 +1,9 @@
 use crate::types::{Address, B256, U256};
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use ssz_types::{FixedVector, VariableList};
 use tree_hash_derive::TreeHash;
-use typenum::{U1048576, U1073741824, U16, U256 as TypenumU256, U32};
+use typenum::{U16, U32, U256 as TypenumU256, U1048576, U1073741824};
 
 pub type Bytes48 = alloy_primitives::FixedBytes<48>;
 pub type KzgCommitment = Bytes48;

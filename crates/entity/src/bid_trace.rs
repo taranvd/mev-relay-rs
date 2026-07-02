@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::types::{Address, B256, U256};
 use relay_crypto::{BlsPublicKey, BlsSignature, SignedRoot};
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use tree_hash_derive::TreeHash;
 
 /// The Bid trace type.

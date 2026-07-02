@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::bid_trace::BidTrace;
-use relay_crypto::BlsSignature;
 use crate::execution_payload::{BlobsBundle, ExecutionPayload};
+use relay_crypto::BlsSignature;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BidSubmission {
