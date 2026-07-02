@@ -1,5 +1,5 @@
-extern crate ssz_derive;
+pub mod head_slot;
+pub mod bid_trace;
 
-pub mod fork;
-
-pub use fork::*;
+pub use head_slot::*;
+pub use bid_trace::*;

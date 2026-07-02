@@ -13,6 +13,7 @@ resolver = "2"
 members = [
     "crates/api",
     "crates/app",
+    "crates/crypto",
     "crates/datastore",
     "crates/entity",
     "crates/gateway",
@@ -32,6 +33,7 @@ repository = "https://github.com/taranvd/mev-relay-rs"
 
 relay-api = { path = "crates/api" }
 relay-app = { path = "crates/app" }
+relay-crypto = { path = "crates/crypto" }
 relay-datastore = { path = "crates/datastore" }
 relay-entity = { path = "crates/entity" }
 relay-gateway = { path = "crates/gateway" }
@@ -52,7 +54,7 @@ tree_hash = "0.12"
 tree_hash_derive = "0.12"
 
 # Crypto
-alloy-primitives = "0.8"
+alloy-primitives = { version = "0.8", features = ["serde"] }
 blst = "0.3.11"
 
 # Utilities

@@ -1,4 +1,4 @@
-use crate::bls::BlsPublicKey;
+use crate::BlsPublicKey;
 use blst::BLST_ERROR::BLST_SUCCESS;
 use blst::min_pk::Signature;
 
@@ -30,14 +30,14 @@ impl BlsSignature {
     }
 
     pub fn verify(&self, pubkey: &BlsPublicKey, msg: &[u8]) -> bool {
-        self.0.verify(true, msg, DST, &[], &pubkey.0, false) == BLST_SUCCESS
+        self.0.verify(true, msg, DST, &[], &pubkey.0, true) == BLST_SUCCESS
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bls::BlsSecretKey;
+    use crate::BlsSecretKey;
 
     #[test]
     fn test_verify_correct() {

@@ -1180,6 +1180,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "foldhash 0.1.5",
+ "serde",
 ]
 
 [[package]]
@@ -1886,6 +1887,7 @@ dependencies = [
  "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
+ "serde",
 ]
 
 [[package]]
@@ -2000,6 +2002,22 @@ name = "relay-app"
 version = "0.1.0"
 
 [[package]]
+name = "relay-crypto"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives 0.8.26",
+ "blst",
+ "ethereum_serde_utils 0.5.2",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
+ "rand 0.9.4",
+ "serde",
+ "serde_json",
+ "tree_hash",
+ "tree_hash_derive",
+]
+
+[[package]]
 name = "relay-datastore"
 version = "0.1.0"
 
@@ -2011,6 +2029,7 @@ dependencies = [
  "ethereum_serde_utils 0.5.2",
  "ethereum_ssz",
  "ethereum_ssz_derive",
+ "relay-crypto",
  "serde",
  "serde_json",
  "serde_with",
@@ -2024,6 +2043,7 @@ version = "0.1.0"
 dependencies = [
  "blst",
  "rand 0.9.4",
+ "relay-crypto",
  "relay-entity",
  "tree_hash",
  "tree_hash_derive",

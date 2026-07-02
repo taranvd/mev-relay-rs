@@ -1,4 +1,4 @@
-use crate::bls::BlsSecretKey;
+use crate::BlsSecretKey;
 use blst::min_pk::PublicKey;
 
 pub const PUBLIC_KEY_BYTES_LEN: usize = 48;
@@ -26,10 +26,52 @@ impl BlsPublicKey {
     }
 }
 
+impl Eq for BlsPublicKey {}
+
+impl std::hash::Hash for BlsPublicKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.serialize().hash(state);
+    }
+}
+
+impl serde::Serialize for BlsPublicKey {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let hex_str = alloy_primitives::hex::encode_prefixed(self.serialize());
+        serializer.serialize_str(&hex_str)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BlsPublicKey {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        let bytes = alloy_primitives::hex::decode(&s)
+            .map_err(serde::de::Error::custom)?;
+        Self::deserialize(&bytes).map_err(serde::de::Error::custom)
+    }
+}
+
+impl tree_hash::TreeHash for BlsPublicKey {
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        <[u8; PUBLIC_KEY_BYTES_LEN] as tree_hash::TreeHash>::tree_hash_type()
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        self.serialize().tree_hash_packed_encoding()
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        <[u8; PUBLIC_KEY_BYTES_LEN] as tree_hash::TreeHash>::tree_hash_packing_factor()
+    }
+
+    fn tree_hash_root(&self) -> tree_hash::Hash256 {
+        self.serialize().tree_hash_root()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bls::BlsSecretKey;
+    use crate::BlsSecretKey;
 
     #[test]
     fn test_serialize_roundtrip() {
