@@ -109,7 +109,7 @@ impl ForkData {
         let fork_data_root = self.tree_hash_root();
         let mut domain = Domain::default();
         domain[..4].copy_from_slice(BuilderDomain::default().as_ref());
-        domain[4..].copy_from_slice(&fork_data_root.as_slice()[..28]);
+        domain[4..].copy_from_slice(&fork_data_root.as_bytes()[..28]);
         domain
     }
 
@@ -117,7 +117,7 @@ impl ForkData {
         let fork_data_root = self.tree_hash_root();
         let mut domain = Domain::default();
         domain[..4].copy_from_slice(&ProposerDomain::default().0);
-        domain[4..].copy_from_slice(&fork_data_root.as_slice()[..28]);
+        domain[4..].copy_from_slice(&fork_data_root.as_bytes()[..28]);
         domain
     }
 }

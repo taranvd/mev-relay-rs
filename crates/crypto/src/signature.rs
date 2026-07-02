@@ -8,7 +8,30 @@ pub const SIGNATURE_BYTES_LEN: usize = 96;
 /// The domain separation tag used in BLS domain separation.
 pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
+#[derive(Clone)]
 pub struct BlsSignature(pub(crate) blst::min_pk::Signature);
+
+impl std::fmt::Debug for BlsSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BlsSignature({})", alloy_primitives::hex::encode_prefixed(self.serialize()))
+    }
+}
+
+impl serde::Serialize for BlsSignature {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let hex_str = alloy_primitives::hex::encode_prefixed(self.serialize());
+        serializer.serialize_str(&hex_str)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BlsSignature {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        let bytes = alloy_primitives::hex::decode(&s)
+            .map_err(serde::de::Error::custom)?;
+        Self::deserialize(&bytes).map_err(serde::de::Error::custom)
+    }
+}
 
 impl BlsSignature {
     pub fn serialize(&self) -> [u8; 96] {
