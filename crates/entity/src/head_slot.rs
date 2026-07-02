@@ -13,7 +13,7 @@ impl HeadSlot {
     }
 
     /// Returns true if the slot is the designated slot to refresh proposer duties.
-    /// We intentionally refresh on the second slot of an epoch (1, 33, 65, 97...) 
+    /// We intentionally refresh on the second slot of an epoch (1, 33, 65, 97...)
     /// to give the beacon node enough time to calculate duties for the next epoch.
     pub fn is_duty_refresh_slot(&self, slots_per_epoch: u64) -> bool {
         self.0 % slots_per_epoch == 1
