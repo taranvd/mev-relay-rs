@@ -2,8 +2,8 @@ use alloy_primitives::B256 as AlloyB256;
 use parking_lot::RwLock;
 use relay_crypto::BlsPublicKey;
 use relay_entity::{
-    Address, BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty, ValidatorRegistration,
-    B256,
+    Address, B256, BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty,
+    ValidatorRegistration,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -103,7 +103,7 @@ impl Storage for MemoryStorage {
     }
 
     fn read_blinded_block_response(&self, proposer: &BlsPublicKey) -> Option<BlindedBlockResponse> {
-        self.inner.read().blinded_blocks.get(&proposer).cloned()
+        self.inner.read().blinded_blocks.get(proposer).cloned()
     }
 
     fn set_delivered_blocks(&self, block_hash: B256) {

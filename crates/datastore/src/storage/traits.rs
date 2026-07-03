@@ -1,6 +1,6 @@
 use relay_crypto::BlsPublicKey;
 use relay_entity::{
-    BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty, ValidatorRegistration, B256,
+    B256, BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty, ValidatorRegistration,
 };
 use std::collections::HashMap;
 
