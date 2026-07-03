@@ -4,3 +4,15 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+alloy-primitives.workspace = true
+relay-crypto.workspace = true
+relay-entity.workspace = true
+moka.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+blst.workspace = true
+ssz_types.workspace = true
