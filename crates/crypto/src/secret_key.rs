@@ -1,4 +1,5 @@
-use crate::bls::BlsPublicKey;
+use crate::BlsPublicKey;
+use crate::signature::{BlsSignature, DST};
 use blst::min_pk::SecretKey;
 use rand::Rng;
 
@@ -33,6 +34,10 @@ impl BlsSecretKey {
 
     pub fn public_key(&self) -> BlsPublicKey {
         BlsPublicKey::from_secret_key(self)
+    }
+
+    pub fn sign(&self, msg: &[u8]) -> BlsSignature {
+        BlsSignature(self.0.sign(msg, DST, &[]))
     }
 }
 

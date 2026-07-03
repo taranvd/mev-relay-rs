@@ -1,0 +1,25 @@
+[package]
+name = "relay-crypto"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+# BLS12-381 cryptography
+blst.workspace = true
+rand.workspace = true
+
+# SSZ + tree hashing (for SignedRoot, ForkData)
+tree_hash.workspace = true
+tree_hash_derive.workspace = true
+ethereum_ssz.workspace = true
+ethereum_ssz_derive.workspace = true
+ethereum_serde_utils.workspace = true
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+# Hex encoding (for ForkVersion::from_str)
+alloy-primitives.workspace = true

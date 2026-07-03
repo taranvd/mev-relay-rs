@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 relay-entity.workspace = true
+relay-crypto.workspace = true
 blst.workspace = true
 rand.workspace = true
 tree_hash.workspace = true

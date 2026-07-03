@@ -1,8 +1,4 @@
-use relay_entity::fork::{ForkDatas, SignedRoot};
-
-use crate::bls::public_key::BlsPublicKey;
-use crate::bls::secret_key::BlsSecretKey;
-use crate::bls::signature::{BlsSignature, DST};
+use relay_crypto::{BlsPublicKey, BlsSecretKey, BlsSignature, ForkDatas, SignedRoot};
 
 #[derive(Debug, Clone)]
 pub struct BlsSigner {
@@ -30,8 +26,7 @@ impl BlsSigner {
     pub fn sign<T: SignedRoot>(&self, msg: &T) -> BlsSignature {
         let domain = self.fork_data.compute_builder_domain();
         let signing_root = msg.signing_root(domain.into());
-        let sig = self.secret_key.0.sign(signing_root.as_ref(), DST, &[]);
-        BlsSignature(sig)
+        self.secret_key.sign(signing_root.as_ref())
     }
 
     pub fn verify<T: SignedRoot>(
@@ -42,9 +37,7 @@ impl BlsSigner {
     ) -> bool {
         let domain = self.fork_data.compute_builder_domain();
         let signing_root = msg.signing_root(domain.into());
-        sig.0
-            .verify(true, signing_root.as_ref(), DST, &[], &pubkey.0, true)
-            == blst::BLST_ERROR::BLST_SUCCESS
+        sig.verify(pubkey, signing_root.as_ref())
     }
 
     pub fn public_key(&self) -> BlsPublicKey {

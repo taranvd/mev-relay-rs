@@ -13,6 +13,7 @@ resolver = "2"
 members = [
     "crates/api",
     "crates/app",
+    "crates/crypto",
     "crates/datastore",
     "crates/entity",
     "crates/gateway",
@@ -32,6 +33,7 @@ repository = "https://github.com/taranvd/mev-relay-rs"
 
 relay-api = { path = "crates/api" }
 relay-app = { path = "crates/app" }
+relay-crypto = { path = "crates/crypto" }
 relay-datastore = { path = "crates/datastore" }
 relay-entity = { path = "crates/entity" }
 relay-gateway = { path = "crates/gateway" }
@@ -40,19 +42,21 @@ relay-metrics = { path = "crates/metrics" }
 relay-usecase = { path = "crates/usecase" }
 
 # Serialization
-serde = { version = "1.0", default-features = false }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0.94"
 serde_with = "3.3.0"
 
 # Ethereum SSZ / Tree Hashing
-ethereum_ssz = "0.10"
-ethereum_ssz_derive = "0.10"
+ethereum_ssz = "0.5"
+ethereum_ssz_derive = "0.5"
 ethereum_serde_utils = "0.5"
-tree_hash = "0.12"
-tree_hash_derive = "0.12"
+tree_hash = "0.6"
+tree_hash_derive = "0.6"
+ssz_types = "0.6"
+typenum = "1.17"
 
 # Crypto
-alloy-primitives = "0.8"
+alloy-primitives = { version = "0.8", features = ["serde"] }
 blst = "0.3.11"
 
 # Utilities
@@ -108,6 +112,8 @@ num_cpus = "1.16"
 
 # Database
 moka = { version = "0.12", features = ["future"] }
+parking_lot = "0.12"
+mockall = "0.13"
 
 # Cli
 clap = { version = "4.5", features = ["default", "derive", "env"] }
