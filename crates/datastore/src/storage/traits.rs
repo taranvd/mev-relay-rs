@@ -1,6 +1,6 @@
 use relay_crypto::BlsPublicKey;
 use relay_entity::{
-    B256, BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty, ValidatorRegistration,
+    BlindedBlockResponse, HeadSlot, PayloadAttributes, ProposerDuty, ValidatorRegistration, B256,
 };
 use std::collections::HashMap;
 
@@ -18,6 +18,6 @@ pub trait Storage: Send + Sync {
     fn find_duty_by_slot(&self, slot: u64) -> Option<ProposerDuty>;
     fn read_proposer_duties(&self) -> Vec<ProposerDuty>;
     fn set_blinded_block_response(&self, proposer: BlsPublicKey, resp: BlindedBlockResponse);
-    fn read_blinded_block_response(&self, proposer: BlsPublicKey) -> Option<BlindedBlockResponse>;
+    fn read_blinded_block_response(&self, proposer: &BlsPublicKey) -> Option<BlindedBlockResponse>;
     fn set_delivered_blocks(&self, block_hash: B256);
 }
