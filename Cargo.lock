@@ -2038,6 +2038,19 @@ version = "0.1.0"
 [[package]]
 name = "relay-usecase"
 version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "async-trait",
+ "blst",
+ "parking_lot",
+ "relay-crypto",
+ "relay-datastore",
+ "relay-entity",
+ "ssz_types",
+ "thiserror",
+ "tokio",
+ "typenum",
+]
 
 [[package]]
 name = "rfc6979"
