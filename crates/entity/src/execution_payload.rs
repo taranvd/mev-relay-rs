@@ -55,6 +55,12 @@ pub struct ExecutionPayload {
     pub excess_blob_gas: u64,
 }
 
+impl ExecutionPayload {
+    pub fn prev_randao(&self) -> alloy_primitives::B256 {
+        self.prev_randao.0
+    }
+}
+
 /// Execution payload header.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, TreeHash)]
