@@ -15,7 +15,6 @@ pub use bid_trace::*;
 pub use blinded_block::*;
 pub use execution_payload::*;
 pub use head_slot::*;
-pub use relay_crypto::ForkName;
 pub use payload_attributes::*;
 pub use proposer_duty::*;
 pub use relay_crypto::ForkName;
