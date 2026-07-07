@@ -1,0 +1,27 @@
+syntax = "proto3";
+package relay;
+
+service ValidatorService {
+  rpc RegisterValidator(RegisterValidatorRequest) returns (RegisterValidatorResponse);
+}
+
+message RegisterValidatorRequest {
+  SignedValidatorRegistration registration = 1;
+}
+
+message RegisterValidatorResponse {
+  int64 code = 1;
+  string message = 2;
+}
+
+message SignedValidatorRegistration {
+  ValidatorRegistrationMessage message = 1;
+  bytes signature = 2;
+}
+
+message ValidatorRegistrationMessage {
+  bytes fee_recipient = 1;
+  uint64 gas_limit = 2;
+  uint64 timestamp = 3;
+  bytes pubkey = 4;
+}
