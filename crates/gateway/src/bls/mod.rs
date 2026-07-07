@@ -1,3 +1,1 @@
-mod signer;
-
-pub use signer::*;
+pub use relay_crypto::BlsSigner;

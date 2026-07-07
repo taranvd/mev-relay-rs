@@ -1,9 +1,10 @@
-use relay_crypto::{BlsPublicKey, BlsSecretKey, BlsSignature, ForkDatas, SignedRoot};
+use crate::{BlsPublicKey, BlsSecretKey, BlsSignature, ForkDatas, ForkName, SignedRoot};
 
 #[derive(Debug, Clone)]
 pub struct BlsSigner {
     secret_key: BlsSecretKey,
     fork_data: ForkDatas,
+    fork_name: ForkName,
 }
 
 impl Default for BlsSigner {
@@ -11,15 +12,17 @@ impl Default for BlsSigner {
         Self {
             secret_key: BlsSecretKey::random(),
             fork_data: ForkDatas::default(),
+            fork_name: ForkName::Electra,
         }
     }
 }
 
 impl BlsSigner {
-    pub fn new(secret_key: BlsSecretKey, fork_data: ForkDatas) -> Self {
+    pub fn new(secret_key: BlsSecretKey, fork_data: ForkDatas, fork_name: ForkName) -> Self {
         Self {
             secret_key,
             fork_data,
+            fork_name,
         }
     }
 
@@ -46,6 +49,10 @@ impl BlsSigner {
 
     pub fn fork_data(&self) -> &ForkDatas {
         &self.fork_data
+    }
+
+    pub fn fork_name(&self) -> ForkName {
+        self.fork_name
     }
 }
 

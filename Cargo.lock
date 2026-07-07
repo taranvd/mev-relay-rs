@@ -2188,6 +2188,7 @@ dependencies = [
  "ssz_types",
  "thiserror",
  "tokio",
+ "tracing",
  "typenum",
 ]
 

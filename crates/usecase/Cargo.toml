@@ -10,6 +10,7 @@ relay-datastore.workspace = true
 alloy-primitives.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

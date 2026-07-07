@@ -3,7 +3,7 @@ use crate::proto::bidder_service_server::BidderService;
 
 use relay_datastore::{Auctioneer, Storage};
 use relay_entity::BidSubmission;
-use relay_usecase::{SubmitBidError, SubmitBidUseCase};
+use relay_usecase::SubmitBidUseCase;
 
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
@@ -32,21 +32,21 @@ where
     S: Storage,
     A: Auctioneer,
 {
-    async fn handle_bid(&self, req: proto::BidRequest) -> Result<(), Status> {
+    async fn handle_bid(&self, req: proto::BidRequest) -> proto::BidResponse {
         info!("bid chunk received");
 
         let submission = match BidSubmission::try_from(req) {
             Ok(s) => s,
             Err(e) => {
-                let mut reason = String::from("failed to convert bid request");
+                let message = format!("conversion error: {}", e);
                 tracing::Span::current().record("err", tracing::field::display(&e));
-                error!(reason);
-                reason = format!("{}: {}", reason, e);
-                return Err(Status::invalid_argument(reason));
+                error!(message);
+                return proto::BidResponse { code: 1, message };
             }
         };
 
-        self.usecase
+        let result = self
+            .usecase
             .execute(submission)
             .instrument(tracing::info_span!(
                 "execute_bid",
@@ -54,28 +54,22 @@ where
                 value = tracing::field::Empty,
                 err = tracing::field::Empty,
             ))
-            .await
-            .map_err(|e| {
-                let mut reason = String::from("bid rejected");
-                tracing::Span::current().record("err", tracing::field::display(&e));
-                error!(reason);
-                reason = format!("{}: {}", reason, e);
-                to_status(e, reason)
-            })?;
+            .await;
 
-        info!("bid accepted");
-        Ok(())
-    }
-}
-
-fn to_status(err: SubmitBidError, reason: String) -> Status {
-    match err {
-        SubmitBidError::ZeroBid | SubmitBidError::BelowFloor(_) => Status::invalid_argument(reason),
-        SubmitBidError::UnauthorizedBuilder => Status::permission_denied(reason),
-        SubmitBidError::PastSlot => Status::failed_precondition(reason),
-        SubmitBidError::InvalidBuilderSignature => Status::unauthenticated(reason),
-        SubmitBidError::DutyNotFound | SubmitBidError::InvalidPayloadAttributes(_) => {
-            Status::failed_precondition(reason)
+        match result {
+            Ok(()) => {
+                info!("bid accepted");
+                proto::BidResponse {
+                    code: 0,
+                    message: "ok".into(),
+                }
+            }
+            Err(err) => {
+                let message = err.to_string();
+                tracing::Span::current().record("err", tracing::field::display(&err));
+                error!(message);
+                proto::BidResponse { code: 1, message }
+            }
         }
     }
 }
@@ -107,16 +101,7 @@ where
             }
         };
 
-        let response = match Self::handle_bid(&self, msg).await {
-            Ok(()) => proto::BidResponse {
-                code: 0,
-                message: String::from("ok"),
-            },
-            Err(status) => proto::BidResponse {
-                code: status.code() as i64,
-                message: status.message().into(),
-            },
-        };
+        let response = Self::handle_bid(&self, msg).await;
 
         info!("bidding disconnected");
         Ok(Response::new(response))
@@ -326,8 +311,9 @@ mod tests {
     async fn test_handle_bid_success() {
         let (service, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
-        let result = service.handle_bid(req).await;
-        assert!(result.is_ok());
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 0);
+        assert_eq!(resp.message, "ok");
     }
 
     #[tokio::test]
@@ -335,8 +321,8 @@ mod tests {
         let (service, sk, builder_pk, proposer_pk) = setup();
         let mut req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
         req.bid_trace.as_mut().unwrap().value = String::from("0");
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
@@ -344,24 +330,24 @@ mod tests {
         let (service, _sk, _builder_pk, proposer_pk) = setup();
         let (other_sk, other_pk) = deterministic_key(&[99u8; 32]);
         let req = create_signed_bid_request(1, 100, [0u8; 32], &other_pk, &proposer_pk, &other_sk);
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_past_slot() {
         let (service, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(5, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_invalid_payload_attributes() {
         let (service, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(1, 100, [3u8; 32], &builder_pk, &proposer_pk, &sk);
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
@@ -373,8 +359,8 @@ mod tests {
             signature: vec![],
             blobs_bundle: None,
         };
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
@@ -382,7 +368,7 @@ mod tests {
         let (service, sk, builder_pk, proposer_pk) = setup();
         let mut req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
         req.signature = vec![0u8; 10];
-        let err = service.handle_bid(req).await.unwrap_err();
-        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        let resp = service.handle_bid(req).await;
+        assert_eq!(resp.code, 1);
     }
 }
