@@ -1,0 +1,18 @@
+syntax = "proto3";
+package relay;
+
+service RetrieverService {
+  rpc Retrieve(stream RetrieveRequest) returns (stream RetrieveResponse);
+}
+
+message RetrieveRequest {
+  uint64 slot = 1;
+  bytes parent_hash = 2;
+  bytes proposer_pubkey = 3;
+}
+
+message RetrieveResponse {
+  bytes signed_header = 1;
+  bytes execution_payload = 2;
+  bytes blobs_bundle = 3;
+}

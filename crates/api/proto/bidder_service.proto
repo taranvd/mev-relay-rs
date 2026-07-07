@@ -2,7 +2,7 @@ syntax = "proto3";
 package relay;
 
 service BidderService {
-  rpc Bid(stream BidRequest) returns (BidResponse);
+  rpc Bid(stream BidRequest) returns (stream BidResponse);
 }
 
 message BidRequest {

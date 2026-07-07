@@ -5,6 +5,7 @@ use relay_entity::BidSubmission;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[derive(Clone)]
 pub struct MemoryAuctioneer {
     cache: Cache<u64, Arc<BidSubmission>>,
 }

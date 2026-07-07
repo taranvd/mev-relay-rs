@@ -2090,6 +2090,7 @@ dependencies = [
  "relay-datastore",
  "relay-entity",
  "relay-usecase",
+ "serde_json",
  "ssz_types",
  "thiserror",
  "tokio",
