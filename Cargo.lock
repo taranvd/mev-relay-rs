@@ -2185,9 +2185,11 @@ dependencies = [
  "relay-crypto",
  "relay-datastore",
  "relay-entity",
+ "relay-gateway",
  "ssz_types",
  "thiserror",
  "tokio",
+ "tracing",
  "typenum",
 ]
 

@@ -1,4 +1,5 @@
 use crate::types::{Address, B256, U256};
+use relay_crypto::SignedRoot;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use ssz_types::{FixedVector, VariableList};
@@ -92,6 +93,8 @@ pub struct ExecutionPayloadHeader {
     #[serde_as(as = "DisplayFromStr")]
     pub excess_blob_gas: u64,
 }
+
+impl SignedRoot for ExecutionPayloadHeader {}
 
 /// Blobs bundle.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

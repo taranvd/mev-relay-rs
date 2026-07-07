@@ -1,8 +1,9 @@
-use crate::SubmitBidError;
+use crate::UseCaseError;
 use relay_crypto::ForkDatas;
 use relay_datastore::{Auctioneer, Storage};
 use relay_entity::{BidSubmission, U256};
 use std::sync::Arc;
+use tracing::info;
 
 pub struct SubmitBidUseCase<S: Storage, A: Auctioneer> {
     storage: S,
@@ -19,58 +20,57 @@ impl<S: Storage, A: Auctioneer> SubmitBidUseCase<S, A> {
         }
     }
 
-    pub async fn execute(&self, bid: BidSubmission) -> Result<(), SubmitBidError> {
+    pub async fn execute(&self, bid: BidSubmission) -> Result<(), UseCaseError> {
         let slot = bid.message.slot;
         let builder_pubkey = &bid.message.builder_pubkey;
         let value = bid.message.value;
 
-        // 1. Zero bid check
         if value == U256(alloy_primitives::U256::ZERO) {
-            return Err(SubmitBidError::ZeroBid);
+            info!(target: "submit_bid", ?slot, ?builder_pubkey, "zero bid rejected");
+            return Err(UseCaseError::ZeroBid);
         };
 
-        //2. Whitelist check
         if !self.storage.is_whitelisted_builder(builder_pubkey) {
-            return Err(SubmitBidError::UnauthorizedBuilder);
+            info!(target: "submit_bid", ?slot, ?builder_pubkey, "unauthorized builder");
+            return Err(UseCaseError::UnauthorizedBuilder);
         }
 
-        //3. Slot validation
         let head_slot = self.storage.read_head_slot();
-
         if !head_slot.is_next_slot(slot) {
-            return Err(SubmitBidError::PastSlot);
+            info!(target: "submit_bid", ?slot, head_slot = %head_slot.0, "invalid slot");
+            return Err(UseCaseError::InvalidSlot);
         }
 
-        //4. Payload attributes validation
         let attrs = self.storage.read_payload_attributes();
         if attrs.prev_randao != bid.execution_payload.prev_randao() {
-            return Err(SubmitBidError::InvalidPayloadAttributes(
+            info!(target: "submit_bid", ?slot, "prev_randao mismatch");
+            return Err(UseCaseError::InvalidPayloadAttributes(
                 "prev_randao mismatch".into(),
             ));
         }
 
-        //5. Duty lookup
         let duty = self
             .storage
             .find_duty_by_slot(slot)
-            .ok_or(SubmitBidError::DutyNotFound);
+            .ok_or(UseCaseError::DutyNotFound);
 
-        //6. BLS signature verification
         let builder_domain = self.fork_datas.compute_builder_domain();
         if !bid.message.verify_signature(&bid.signature, builder_domain) {
-            return Err(SubmitBidError::InvalidBuilderSignature);
+            info!(target: "submit_bid", ?slot, ?builder_pubkey, "invalid builder signature");
+            return Err(UseCaseError::InvalidBuilderSignature);
         }
 
-        //7. Save blinded block response
         let blinded = bid.to_blinded_block_response();
         self.storage
             .set_blinded_block_response(duty?.pubkey, blinded);
 
-        //8. Compare and bit
+        info!(target: "submit_bid", ?slot, ?builder_pubkey, ?value, "bid accepted");
+
         let bid_arc = Arc::new(bid);
-        if let Err(e) = self.auctioneer.compare_and_bid(slot, bid_arc).await {
-            return Err(SubmitBidError::BelowFloor(e.to_string()));
-        }
+        self.auctioneer
+            .compare_and_bid(slot, bid_arc)
+            .await
+            .map_err(UseCaseError::from)?;
 
         Ok(())
     }
@@ -281,7 +281,7 @@ mod tests {
         let bid = create_signed_bid(10, 0, B256(alloy_primitives::B256::default()));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::ZeroBid));
+        assert!(matches!(err, UseCaseError::ZeroBid));
     }
 
     #[tokio::test]
@@ -291,7 +291,7 @@ mod tests {
         let bid = create_signed_bid(10, 100, B256(alloy_primitives::B256::default()));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::UnauthorizedBuilder));
+        assert!(matches!(err, UseCaseError::UnauthorizedBuilder));
     }
 
     #[tokio::test]
@@ -303,7 +303,7 @@ mod tests {
         let bid = create_signed_bid(5, 100, B256(alloy_primitives::B256::default()));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::PastSlot));
+        assert!(matches!(err, UseCaseError::InvalidSlot));
     }
 
     #[tokio::test]
@@ -315,7 +315,7 @@ mod tests {
         let bid = create_signed_bid(10, 100, B256(alloy_primitives::B256::repeat_byte(0xff)));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::InvalidPayloadAttributes(_)));
+        assert!(matches!(err, UseCaseError::InvalidPayloadAttributes(_)));
     }
 
     #[tokio::test]
@@ -327,7 +327,7 @@ mod tests {
         let bid = create_signed_bid(10, 100, B256(alloy_primitives::B256::default()));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::DutyNotFound));
+        assert!(matches!(err, UseCaseError::DutyNotFound));
     }
 
     #[tokio::test]
@@ -347,7 +347,7 @@ mod tests {
             BlsSignature::deserialize(&other_sk.sign(b"wrong", DST, &[]).to_bytes()).unwrap();
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::InvalidBuilderSignature));
+        assert!(matches!(err, UseCaseError::InvalidBuilderSignature));
     }
 
     #[tokio::test]
@@ -364,6 +364,6 @@ mod tests {
         let bid = create_signed_bid(10, 100, B256(alloy_primitives::B256::default()));
 
         let err = usecase.execute(bid).await.unwrap_err();
-        assert!(matches!(err, SubmitBidError::BelowFloor(_)));
+        assert!(matches!(err, UseCaseError::AuctioneerError(_)));
     }
 }

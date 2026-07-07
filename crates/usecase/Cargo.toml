@@ -7,9 +7,11 @@ edition.workspace = true
 relay-crypto.workspace = true
 relay-entity.workspace = true
 relay-datastore.workspace = true
+relay-gateway.workspace = true
 alloy-primitives.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
