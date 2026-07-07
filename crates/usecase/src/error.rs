@@ -27,6 +27,9 @@ pub enum UseCaseError {
     #[error("invalid builder signature")]
     InvalidBuilderSignature,
 
+    #[error("invalid validator signature")]
+    InvalidValidatorSignature,
+
     #[error("invalid payload attributes: {0}")]
     InvalidPayloadAttributes(String),
 }

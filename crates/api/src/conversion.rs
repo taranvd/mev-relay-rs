@@ -161,6 +161,25 @@ impl TryFrom<proto::BlobsBundle> for BlobsBundle {
     }
 }
 
+impl TryFrom<proto::SignedValidatorRegistration> for relay_entity::SignedValidatorRegistration {
+    type Error = ConversionError;
+
+    fn try_from(s: proto::SignedValidatorRegistration) -> Result<Self, Self::Error> {
+        let msg = s.message.ok_or(ConversionError::MissingField("message"))?;
+        Ok(Self {
+            message: relay_entity::ValidatorRegistration {
+                fee_recipient: bytes_to_address(&msg.fee_recipient)?,
+                gas_limit: msg.gas_limit,
+                timestamp: msg.timestamp,
+                pubkey: BlsPublicKey::deserialize(&msg.pubkey)
+                    .map_err(ConversionError::BlsPublicKey)?,
+            },
+            signature: BlsSignature::deserialize(&s.signature)
+                .map_err(ConversionError::BlsSignature)?,
+        })
+    }
+}
+
 fn bytes_to_b256(bytes: &[u8]) -> Result<B256, ConversionError> {
     let arr: [u8; 32] = bytes
         .try_into()

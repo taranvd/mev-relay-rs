@@ -5,6 +5,7 @@ fn main() {
             &[
                 "proto/bidder_service.proto",
                 "proto/retriever_service.proto",
+                "proto/validator_service.proto",
             ],
             &["proto"],
         )
