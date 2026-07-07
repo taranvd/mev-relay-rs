@@ -5,16 +5,21 @@ use relay_datastore::{Auctioneer, Storage};
 use relay_entity::BidSubmission;
 use relay_usecase::SubmitBidUseCase;
 
-use tokio_stream::StreamExt;
+use std::pin::Pin;
+use std::sync::Arc;
+use tokio::sync::mpsc::{Sender, channel};
+use tonic::codegen::tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{Instrument, error, info};
+
+const BUF_SIZE: usize = 16;
 
 pub struct BidderServiceImpl<S, A>
 where
     S: Storage,
     A: Auctioneer,
 {
-    usecase: SubmitBidUseCase<S, A>,
+    usecase: Arc<SubmitBidUseCase<S, A>>,
 }
 
 impl<S, A> BidderServiceImpl<S, A>
@@ -23,52 +28,84 @@ where
     A: Auctioneer,
 {
     pub fn new(usecase: SubmitBidUseCase<S, A>) -> Self {
-        Self { usecase }
+        Self {
+            usecase: Arc::new(usecase),
+        }
     }
-}
 
-impl<S, A> BidderServiceImpl<S, A>
-where
-    S: Storage,
-    A: Auctioneer,
-{
-    async fn handle_bid(&self, req: proto::BidRequest) -> proto::BidResponse {
-        info!("bid chunk received");
-
-        let submission = match BidSubmission::try_from(req) {
-            Ok(s) => s,
-            Err(e) => {
-                let message = format!("conversion error: {}", e);
-                tracing::Span::current().record("err", tracing::field::display(&e));
-                error!(message);
-                return proto::BidResponse { code: 1, message };
-            }
-        };
-
-        let result = self
-            .usecase
-            .execute(submission)
-            .instrument(tracing::info_span!(
-                "execute_bid",
-                slot = tracing::field::Empty,
-                value = tracing::field::Empty,
-                err = tracing::field::Empty,
-            ))
-            .await;
-
-        match result {
-            Ok(()) => {
-                info!("bid accepted");
-                proto::BidResponse {
-                    code: 0,
-                    message: "ok".into(),
+    async fn handle_request(
+        usecase: Arc<SubmitBidUseCase<S, A>>,
+        mut in_stream: impl Stream<Item = Result<proto::BidRequest, Status>> + Send + Unpin + 'static,
+        tx: Sender<Result<proto::BidResponse, Status>>,
+    ) {
+        while let Some(msg_result) = in_stream.next().await {
+            let msg = match msg_result {
+                Ok(m) => m,
+                Err(status) => {
+                    error!("bidder: stream error, closing");
+                    tx.send(Err(status)).await.ok();
+                    break;
                 }
-            }
-            Err(err) => {
-                let message = err.to_string();
-                tracing::Span::current().record("err", tracing::field::display(&err));
-                error!(message);
-                proto::BidResponse { code: 1, message }
+            };
+
+            let submission = match BidSubmission::try_from(msg) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("bidder: conversion error: {}", e);
+                    let response = proto::BidResponse {
+                        code: 1,
+                        message: format!("conversion error: {}", e),
+                    };
+                    if tx.send(Ok(response)).await.is_err() {
+                        break;
+                    }
+                    continue;
+                }
+            };
+
+            info!(
+                slot = submission.message.slot,
+                value = %submission.message.value,
+                "bidder: processing bid"
+            );
+
+            let result = usecase
+                .execute(submission)
+                .instrument(tracing::info_span!(
+                    "execute_bid",
+                    slot = tracing::field::Empty,
+                    value = tracing::field::Empty,
+                    err = tracing::field::Empty,
+                ))
+                .await;
+
+            match result {
+                Ok(()) => {
+                    info!("bidder: bid accepted");
+                    if tx
+                        .send(Ok(proto::BidResponse {
+                            code: 0,
+                            message: "ok".into(),
+                        }))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(err) => {
+                    error!("bidder: bid rejected: {}", err);
+                    if tx
+                        .send(Ok(proto::BidResponse {
+                            code: 1,
+                            message: err.to_string(),
+                        }))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -80,31 +117,23 @@ where
     S: Storage + Send + Sync + 'static,
     A: Auctioneer + 'static,
 {
+    type BidStream = Pin<Box<dyn Stream<Item = Result<proto::BidResponse, Status>> + Send>>;
+
     async fn bid(
         &self,
         request: Request<Streaming<proto::BidRequest>>,
-    ) -> Result<Response<proto::BidResponse>, Status> {
-        info!("bidding connected");
+    ) -> Result<Response<Self::BidStream>, Status> {
+        info!("bidder: connected");
 
-        let mut stream = request.into_inner();
+        let (tx, rx) = channel(BUF_SIZE);
+        let usecase = self.usecase.clone();
+        let in_stream = request.into_inner();
 
-        let msg = match stream.next().await {
-            Some(Ok(m)) => m,
-            Some(Err(e)) => {
-                error!(%e, "failed to read stream");
-                return Err(Status::internal("failed to read stream"));
-            }
-            None => {
-                let reason = String::from("empty stream");
-                error!(reason);
-                return Err(Status::invalid_argument(reason));
-            }
-        };
+        tokio::spawn(async move {
+            Self::handle_request(usecase, in_stream, tx).await;
+        });
 
-        let response = Self::handle_bid(&self, msg).await;
-
-        info!("bidding disconnected");
-        Ok(Response::new(response))
+        Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
 }
 
@@ -120,13 +149,7 @@ mod tests {
         ValidatorRegistration,
     };
     use std::collections::HashMap;
-    use std::sync::Arc;
-
-    fn deterministic_key(ikm: &[u8; 32]) -> (blst::min_pk::SecretKey, BlsPublicKey) {
-        let sk = blst::min_pk::SecretKey::key_gen(ikm, &[]).unwrap();
-        let pk = BlsPublicKey::deserialize(&sk.sk_to_pk().compress()).unwrap();
-        (sk, pk)
-    }
+    use tokio_stream::wrappers::ReceiverStream;
 
     struct MockStorage {
         head_slot: RwLock<HeadSlot>,
@@ -213,6 +236,12 @@ mod tests {
         }
     }
 
+    fn deterministic_key(ikm: &[u8; 32]) -> (blst::min_pk::SecretKey, BlsPublicKey) {
+        let sk = blst::min_pk::SecretKey::key_gen(ikm, &[]).unwrap();
+        let pk = BlsPublicKey::deserialize(&sk.sk_to_pk().compress()).unwrap();
+        (sk, pk)
+    }
+
     fn create_signed_bid_request(
         slot: u64,
         value: u128,
@@ -278,7 +307,7 @@ mod tests {
     }
 
     fn setup() -> (
-        BidderServiceImpl<MockStorage, MockAuctioneer>,
+        Arc<SubmitBidUseCase<MockStorage, MockAuctioneer>>,
         blst::min_pk::SecretKey,
         BlsPublicKey,
         BlsPublicKey,
@@ -298,77 +327,170 @@ mod tests {
         );
         let auctioneer = MockAuctioneer;
         let fork_datas = ForkDatas::default();
-        let usecase = SubmitBidUseCase::new(storage, auctioneer, fork_datas);
-        (
-            BidderServiceImpl::new(usecase),
-            builder_sk,
-            builder_pk,
-            proposer_pk,
-        )
+        let usecase = Arc::new(SubmitBidUseCase::new(storage, auctioneer, fork_datas));
+        (usecase, builder_sk, builder_pk, proposer_pk)
     }
 
     #[tokio::test]
     async fn test_handle_bid_success() {
-        let (service, sk, builder_pk, proposer_pk) = setup();
+        let (usecase, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 0);
         assert_eq!(resp.message, "ok");
     }
 
     #[tokio::test]
     async fn test_handle_bid_zero_bid() {
-        let (service, sk, builder_pk, proposer_pk) = setup();
+        let (usecase, sk, builder_pk, proposer_pk) = setup();
         let mut req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
         req.bid_trace.as_mut().unwrap().value = String::from("0");
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_unauthorized_builder() {
-        let (service, _sk, _builder_pk, proposer_pk) = setup();
+        let (usecase, _sk, _builder_pk, proposer_pk) = setup();
         let (other_sk, other_pk) = deterministic_key(&[99u8; 32]);
         let req = create_signed_bid_request(1, 100, [0u8; 32], &other_pk, &proposer_pk, &other_sk);
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_past_slot() {
-        let (service, sk, builder_pk, proposer_pk) = setup();
+        let (usecase, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(5, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_invalid_payload_attributes() {
-        let (service, sk, builder_pk, proposer_pk) = setup();
+        let (usecase, sk, builder_pk, proposer_pk) = setup();
         let req = create_signed_bid_request(1, 100, [3u8; 32], &builder_pk, &proposer_pk, &sk);
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_missing_fields() {
-        let (service, _sk, _builder_pk, _proposer_pk) = setup();
+        let (usecase, _sk, _builder_pk, _proposer_pk) = setup();
         let req = proto::BidRequest {
             bid_trace: None,
             execution_payload: None,
             signature: vec![],
             blobs_bundle: None,
         };
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 
     #[tokio::test]
     async fn test_handle_bid_invalid_signature() {
-        let (service, sk, builder_pk, proposer_pk) = setup();
+        let (usecase, sk, builder_pk, proposer_pk) = setup();
         let mut req = create_signed_bid_request(1, 100, [0u8; 32], &builder_pk, &proposer_pk, &sk);
         req.signature = vec![0u8; 10];
-        let resp = service.handle_bid(req).await;
+
+        let (in_tx, in_rx) = tokio::sync::mpsc::channel(16);
+        let (out_tx, mut out_rx) = tokio::sync::mpsc::channel(16);
+
+        in_tx.send(Ok(req)).await.unwrap();
+        drop(in_tx);
+
+        BidderServiceImpl::<MockStorage, MockAuctioneer>::handle_request(
+            usecase,
+            ReceiverStream::new(in_rx),
+            out_tx,
+        )
+        .await;
+
+        let resp = out_rx.recv().await.unwrap().unwrap();
         assert_eq!(resp.code, 1);
     }
 }
