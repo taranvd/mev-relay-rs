@@ -2,7 +2,7 @@ use crate::UseCaseError;
 use relay_crypto::BlsPublicKey;
 use relay_datastore::{Auctioneer, Storage};
 use relay_entity::{B256, SignedHeader, Versioned};
-use relay_gateway::BlsSigner;
+use relay_crypto::BlsSigner;
 use std::sync::Arc;
 use tracing::info;
 

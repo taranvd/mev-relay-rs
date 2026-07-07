@@ -1,5 +1,4 @@
-use relay_crypto::{BlsPublicKey, BlsSecretKey, BlsSignature, ForkDatas, SignedRoot};
-use relay_entity::ForkName;
+use crate::{BlsPublicKey, BlsSecretKey, BlsSignature, ForkDatas, ForkName, SignedRoot};
 
 #[derive(Debug, Clone)]
 pub struct BlsSigner {
