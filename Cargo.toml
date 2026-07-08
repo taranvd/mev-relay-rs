@@ -65,7 +65,7 @@ tempfile = "3.13"
 idgenerator = "2.0.0"
 
 # Error Handling
-thiserror = "2.0"
+thiserror = { version = "2.0", features = ["default"] }
 
 # Async
 tokio = { version = "1.40", features = ["full", "tracing"] }
@@ -101,8 +101,9 @@ h2 = "0.4"
 bytes = "1.7"
 http = "1.1"
 http-body = "1.0"
-reqwest = "0.12.5"
+reqwest = { version = "0.12.5", features = ["json", "stream"] }
 url = "2.2"
+hex = "0.4"
 
 # Hardware
 num_cpus = "1.16"

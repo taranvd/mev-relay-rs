@@ -1,3 +1,4 @@
+pub mod beacon_event;
 pub mod bid_submission;
 pub mod bid_trace;
 pub mod blinded_block;
@@ -6,10 +7,12 @@ pub mod head_slot;
 pub mod payload_attributes;
 pub mod proposer_duty;
 pub mod signed_header;
+pub mod sync;
 pub mod types;
 pub mod validator;
 pub mod versioned;
 
+pub use beacon_event::*;
 pub use bid_submission::*;
 pub use bid_trace::*;
 pub use blinded_block::*;
@@ -19,6 +22,7 @@ pub use payload_attributes::*;
 pub use proposer_duty::*;
 pub use relay_crypto::ForkName;
 pub use signed_header::*;
+pub use sync::*;
 pub use types::*;
 pub use validator::*;
 pub use versioned::*;
