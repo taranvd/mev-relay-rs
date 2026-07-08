@@ -20,6 +20,7 @@ struct MemoryStorageInner {
     delivered_blocks: Vec<B256>,
 }
 
+#[derive(Clone)]
 pub struct MemoryStorage {
     inner: Arc<RwLock<MemoryStorageInner>>,
 }
