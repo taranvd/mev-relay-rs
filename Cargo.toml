@@ -139,6 +139,15 @@ path = "src/main.rs"
 # Relay workspace
 relay-app.workspace = true
 
+# Async
+tokio.workspace = true
+
+# CLI
+clap.workspace = true
+
+# Tracing
+tracing-subscriber.workspace = true
+
 # Hardware
 num_cpus.workspace = true
 
