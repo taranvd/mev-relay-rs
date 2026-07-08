@@ -155,12 +155,7 @@ pub async fn run(config: RelayConfig) {
     info!(target: "relay", port = config.http_port, "starting health check");
     tokio::spawn(serve_health(config.http_port));
 
-    let relay_service = RelayService::new(
-        api,
-        storage,
-        beacon_handle,
-        config.slots_per_epoch,
-    );
+    let relay_service = RelayService::new(api, storage, beacon_handle, config.slots_per_epoch);
     tokio::spawn(relay_service.run());
 
     info!(target: "relay", "relay started, waiting for shutdown signal");

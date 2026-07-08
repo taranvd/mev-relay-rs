@@ -1,6 +1,8 @@
 use futures::StreamExt;
 use relay_datastore::Storage;
-use relay_entity::{BeaconEvent, HeadEvent, HeadSlot, PayloadAttributes, PayloadAttributesEvent, ProposerDuty};
+use relay_entity::{
+    BeaconEvent, HeadEvent, HeadSlot, PayloadAttributes, PayloadAttributesEvent, ProposerDuty,
+};
 use relay_gateway::{BeaconHandle, BeaconNodeApi};
 use std::sync::Arc;
 use std::time::Duration;
@@ -63,7 +65,8 @@ impl RelayService {
                     while let Some(pos) = line_buf.find('\n') {
                         let line = line_buf[..pos].to_string();
                         line_buf = line_buf[pos + 1..].to_string();
-                        if let Some(event) = self.process_sse_line(&line, &mut current_event).await {
+                        if let Some(event) = self.process_sse_line(&line, &mut current_event).await
+                        {
                             self.handle_event(event).await;
                         }
                     }
@@ -189,7 +192,11 @@ impl RelayService {
         }
         duties
             .iter()
-            .filter(|duty| self.storage.read_validator_registration(&duty.pubkey).is_some())
+            .filter(|duty| {
+                self.storage
+                    .read_validator_registration(&duty.pubkey)
+                    .is_some()
+            })
             .cloned()
             .collect()
     }
@@ -204,10 +211,10 @@ impl RelayService {
                     self.storage.set_head_slot(slot);
                     info!(target: "relay_service", slot = slot.0, "head slot updated (polling)");
                     let epoch = slot.epoch(self.slots_per_epoch);
-                    if slot.is_duty_refresh_slot(self.slots_per_epoch) {
-                        if let Err(e) = self.sync_duties(epoch).await {
-                            warn!(target: "relay_service", error = %e, "duty sync failed in polling");
-                        }
+                    if slot.is_duty_refresh_slot(self.slots_per_epoch)
+                        && let Err(e) = self.sync_duties(epoch).await
+                    {
+                        warn!(target: "relay_service", error = %e, "duty sync failed in polling");
                     }
                 }
                 Err(e) => {
