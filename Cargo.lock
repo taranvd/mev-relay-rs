@@ -2431,6 +2431,14 @@ dependencies = [
 [[package]]
 name = "relay-app"
 version = "0.1.0"
+dependencies = [
+ "futures",
+ "relay-datastore",
+ "relay-entity",
+ "relay-gateway",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "relay-crypto"
