@@ -3,6 +3,7 @@ package relay;
 
 service RetrieverService {
   rpc Retrieve(stream RetrieveRequest) returns (stream RetrieveResponse);
+  rpc SubmitBlindedBlock(SubmitBlindedBlockRequest) returns (BlindedBlockResponse);
 }
 
 message RetrieveRequest {
@@ -15,4 +16,17 @@ message RetrieveResponse {
   bytes signed_header = 1;
   bytes execution_payload = 2;
   bytes blobs_bundle = 3;
+}
+
+message SubmitBlindedBlockRequest {
+  uint64 slot = 1;
+  uint64 proposer_index = 2;
+  bytes block_hash = 3;
+  bytes signature = 4;
+}
+
+message BlindedBlockResponse {
+  bytes execution_payload = 1;
+  bytes blobs_bundle = 2;
+  bytes block_hash = 3;
 }

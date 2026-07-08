@@ -32,4 +32,16 @@ pub enum UseCaseError {
 
     #[error("invalid payload attributes: {0}")]
     InvalidPayloadAttributes(String),
+
+    #[error("proposer index mismatch: expected {expected}, got {actual}")]
+    ProposerIndexMismatch { expected: u64, actual: u64 },
+
+    #[error("no blinded block response found")]
+    NoBlindedBlockResponse,
+
+    #[error("validator not registered")]
+    UnauthorizedSubmission,
+
+    #[error("block hash mismatch")]
+    BlockHashMismatch,
 }

@@ -410,6 +410,26 @@ pub struct RetrieveResponse {
     #[prost(bytes = "vec", tag = "3")]
     pub blobs_bundle: ::prost::alloc::vec::Vec<u8>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmitBlindedBlockRequest {
+    #[prost(uint64, tag = "1")]
+    pub slot: u64,
+    #[prost(uint64, tag = "2")]
+    pub proposer_index: u64,
+    #[prost(bytes = "vec", tag = "3")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "4")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BlindedBlockResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub execution_payload: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "2")]
+    pub blobs_bundle: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "3")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+}
 /// Generated client implementations.
 pub mod retriever_service_client {
     #![allow(
@@ -525,6 +545,30 @@ pub mod retriever_service_client {
                 .insert(GrpcMethod::new("relay.RetrieverService", "Retrieve"));
             self.inner.streaming(req, path, codec).await
         }
+        pub async fn submit_blinded_block(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SubmitBlindedBlockRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlindedBlockResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/relay.RetrieverService/SubmitBlindedBlock",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("relay.RetrieverService", "SubmitBlindedBlock"));
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -550,6 +594,13 @@ pub mod retriever_service_server {
             &self,
             request: tonic::Request<tonic::Streaming<super::RetrieveRequest>>,
         ) -> std::result::Result<tonic::Response<Self::RetrieveStream>, tonic::Status>;
+        async fn submit_blinded_block(
+            &self,
+            request: tonic::Request<super::SubmitBlindedBlockRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlindedBlockResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct RetrieverServiceServer<T> {
@@ -671,6 +722,55 @@ pub mod retriever_service_server {
                                 max_encoding_message_size,
                             );
                         let res = grpc.streaming(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/relay.RetrieverService/SubmitBlindedBlock" => {
+                    #[allow(non_camel_case_types)]
+                    struct SubmitBlindedBlockSvc<T: RetrieverService>(pub Arc<T>);
+                    impl<
+                        T: RetrieverService,
+                    > tonic::server::UnaryService<super::SubmitBlindedBlockRequest>
+                    for SubmitBlindedBlockSvc<T> {
+                        type Response = super::BlindedBlockResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SubmitBlindedBlockRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as RetrieverService>::submit_blinded_block(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SubmitBlindedBlockSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

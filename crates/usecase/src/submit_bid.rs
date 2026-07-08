@@ -52,7 +52,7 @@ impl<S: Storage, A: Auctioneer> SubmitBidUseCase<S, A> {
         let duty = self
             .storage
             .find_duty_by_slot(slot)
-            .ok_or(UseCaseError::DutyNotFound);
+            .ok_or(UseCaseError::DutyNotFound)?;
 
         let builder_domain = self.fork_datas.compute_builder_domain();
         if !bid.message.verify_signature(&bid.signature, builder_domain) {
@@ -60,17 +60,17 @@ impl<S: Storage, A: Auctioneer> SubmitBidUseCase<S, A> {
             return Err(UseCaseError::InvalidBuilderSignature);
         }
 
-        let blinded = bid.to_blinded_block_response();
-        self.storage
-            .set_blinded_block_response(duty?.pubkey, blinded);
-
         info!(target: "submit_bid", ?slot, ?builder_pubkey, ?value, "bid accepted");
 
         let bid_arc = Arc::new(bid);
         self.auctioneer
-            .compare_and_bid(slot, bid_arc)
+            .compare_and_bid(slot, bid_arc.clone())
             .await
             .map_err(UseCaseError::from)?;
+
+        let blinded = bid_arc.to_blinded_block_response();
+        self.storage
+            .set_blinded_block_response(duty.pubkey, blinded);
 
         Ok(())
     }

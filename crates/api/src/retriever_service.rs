@@ -1,7 +1,7 @@
-use relay_crypto::{BlsPublicKey, BlsSigner};
+use relay_crypto::{BlsPublicKey, BlsSignature, BlsSigner, ForkDatas};
 use relay_datastore::{Auctioneer, Storage};
 use relay_entity::B256;
-use relay_usecase::GetHeaderUseCase;
+use relay_usecase::{GetHeaderUseCase, UnblindBlockUseCase};
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Sender, channel};
@@ -16,19 +16,22 @@ const BUF_SIZE: usize = 16;
 pub struct RetrieverServiceImpl<S: Storage, A: Auctioneer> {
     auctioneer: Arc<A>,
     get_header_usecase: Arc<GetHeaderUseCase<S, A>>,
+    unblind_usecase: Arc<UnblindBlockUseCase<S>>,
 }
 
-impl<S: Storage, A: Auctioneer + Clone> RetrieverServiceImpl<S, A> {
+impl<S: Storage + Clone, A: Auctioneer + Clone> RetrieverServiceImpl<S, A> {
     pub fn new(storage: S, auctioneer: A, signer: Arc<BlsSigner>) -> Self {
         let auctioneer = Arc::new(auctioneer);
         let get_header_usecase = Arc::new(GetHeaderUseCase::new(
-            storage,
+            storage.clone(),
             (*auctioneer).clone(),
             signer,
         ));
+        let unblind_usecase = Arc::new(UnblindBlockUseCase::new(storage, ForkDatas::default()));
         Self {
             auctioneer,
             get_header_usecase,
+            unblind_usecase,
         }
     }
 
@@ -109,7 +112,7 @@ impl<S: Storage, A: Auctioneer + Clone> RetrieverServiceImpl<S, A> {
 #[tonic::async_trait]
 impl<S, A> proto::retriever_service_server::RetrieverService for RetrieverServiceImpl<S, A>
 where
-    S: Storage + Send + Sync + 'static,
+    S: Storage + Send + Sync + Clone + 'static,
     A: Auctioneer + Clone + 'static,
 {
     type RetrieveStream =
@@ -132,6 +135,33 @@ where
         });
 
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+
+    async fn submit_blinded_block(
+        &self,
+        request: Request<proto::SubmitBlindedBlockRequest>,
+    ) -> Result<Response<proto::BlindedBlockResponse>, Status> {
+        let req = request.into_inner();
+
+        let block_hash = B256(alloy_primitives::B256::from_slice(&req.block_hash));
+        let signature = BlsSignature::deserialize(&req.signature)
+            .map_err(|e| Status::invalid_argument(format!("invalid signature: {e}")))?;
+
+        let resp = self
+            .unblind_usecase
+            .execute(req.slot, req.proposer_index, block_hash, signature)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(proto::BlindedBlockResponse {
+            execution_payload: serde_json::to_vec(&*resp.execution_payload)
+                .map_err(|e| Status::internal(format!("serialization error: {e}")))?,
+            blobs_bundle: resp
+                .blobs_bundle
+                .map(|b| serde_json::to_vec(&*b).unwrap_or_default())
+                .unwrap_or_default(),
+            block_hash: resp.execution_payload.block_hash.0.to_vec(),
+        }))
     }
 }
 
