@@ -2,6 +2,7 @@ use super::error::BeaconError;
 use futures::StreamExt;
 use relay_entity::{BeaconEvent, HeadEvent, PayloadAttributesEvent};
 use reqwest::Client;
+use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -24,6 +25,7 @@ pub trait BeaconConnection: Send + Sync {
 struct SseByteStream {
     stream: Pin<Box<dyn Stream<Item = Result<bytes::Bytes, BeaconError>> + Send>>,
     buffer: Vec<u8>,
+    pending_events: VecDeque<Result<BeaconEvent, BeaconError>>,
 }
 
 impl SseByteStream {
@@ -31,53 +33,65 @@ impl SseByteStream {
         Self {
             stream,
             buffer: Vec::new(),
+            pending_events: VecDeque::new(),
         }
     }
 
-    fn parse_events(data: &[u8]) -> Vec<Result<BeaconEvent, BeaconError>> {
-        let text = match std::str::from_utf8(data) {
-            Ok(s) => s,
-            Err(_) => return vec![Err(BeaconError::Sse("invalid utf-8 in SSE".into()))],
-        };
+    /// Drain all complete SSE events from the buffer into pending_events.
+    fn drain_buffer(&mut self) {
+        loop {
+            let pos = match self.buffer.windows(4).position(|w| w == b"\n\n") {
+                Some(p) => p,
+                None => return,
+            };
+            let complete = self.buffer[..pos].to_vec();
+            self.buffer.drain(..pos + 4);
 
-        text.split("\n\n")
-            .filter(|block| !block.is_empty())
-            .filter_map(|block| {
-                let mut event_type: Option<&str> = None;
-                let mut event_data = String::new();
+            if complete.is_empty() {
+                continue;
+            }
 
-                for line in block.lines() {
-                    if let Some(val) = line.strip_prefix("event: ") {
-                        event_type = Some(val.trim());
-                    } else if let Some(val) = line.strip_prefix("data: ") {
-                        if !event_data.is_empty() {
-                            event_data.push(' ');
-                        }
-                        event_data.push_str(val.trim());
-                    }
+            match Self::parse_event(&complete) {
+                Some(Ok(event)) => self.pending_events.push_back(Ok(event)),
+                Some(Err(e)) => self.pending_events.push_back(Err(e)),
+                None => {}
+            }
+        }
+    }
+
+    fn parse_event(data: &[u8]) -> Option<Result<BeaconEvent, BeaconError>> {
+        let text = std::str::from_utf8(data).ok()?;
+        let mut event_type: Option<&str> = None;
+        let mut event_data = String::new();
+
+        for line in text.lines() {
+            if let Some(val) = line.strip_prefix("event: ") {
+                event_type = Some(val.trim());
+            } else if let Some(val) = line.strip_prefix("data: ") {
+                if !event_data.is_empty() {
+                    event_data.push(' ');
                 }
+                event_data.push_str(val.trim());
+            }
+        }
 
-                let event_type = event_type?;
-                if event_data.is_empty() {
-                    return None;
-                }
+        let event_type = event_type?;
+        if event_data.is_empty() {
+            return None;
+        }
 
-                Some(match event_type {
-                    "head" => serde_json::from_str::<HeadEvent>(&event_data)
-                        .map(BeaconEvent::Head)
-                        .map_err(|e| BeaconError::Sse(e.to_string())),
-                    "payload_attributes" => {
-                        serde_json::from_str::<PayloadAttributesEvent>(&event_data)
-                            .map(BeaconEvent::PayloadAttributes)
-                            .map_err(|e| BeaconError::Sse(e.to_string()))
-                    }
-                    _ => {
-                        debug!(target: "beacon_events", event = event_type, "unhandled event");
-                        return None;
-                    }
-                })
-            })
-            .collect()
+        Some(match event_type {
+            "head" => serde_json::from_str::<HeadEvent>(&event_data)
+                .map(BeaconEvent::Head)
+                .map_err(|e| BeaconError::Sse(e.to_string())),
+            "payload_attributes" => serde_json::from_str::<PayloadAttributesEvent>(&event_data)
+                .map(BeaconEvent::PayloadAttributes)
+                .map_err(|e| BeaconError::Sse(e.to_string())),
+            _ => {
+                debug!(target: "beacon_events", event = event_type, "unhandled event");
+                return None;
+            }
+        })
     }
 }
 
@@ -85,17 +99,17 @@ impl Stream for SseByteStream {
     type Item = Result<BeaconEvent, BeaconError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(Some(event));
+        }
+
         while let Poll::Ready(chunk) = self.stream.as_mut().poll_next(cx) {
             match chunk {
                 Some(Ok(data)) => {
                     self.buffer.extend_from_slice(&data);
-                    if let Some(pos) = self.buffer.windows(4).position(|w| w == b"\n\n") {
-                        let complete = self.buffer[..pos].to_vec();
-                        self.buffer.drain(..pos + 4);
-                        let events = Self::parse_events(&complete);
-                        if let Some(Ok(e)) = events.into_iter().find(|r| r.is_ok()) {
-                            return Poll::Ready(Some(Ok(e)));
-                        }
+                    self.drain_buffer();
+                    if let Some(event) = self.pending_events.pop_front() {
+                        return Poll::Ready(Some(event));
                     }
                 }
                 Some(Err(e)) => {
@@ -108,6 +122,7 @@ impl Stream for SseByteStream {
                 }
             }
         }
+
         Poll::Pending
     }
 }
@@ -186,11 +201,9 @@ mod tests {
 
     #[test]
     fn test_parse_head_event() {
-        let data = b"event: head\ndata: {\"slot\":\"123\",\"block\":\"0xabc\",\"epoch_transition\":false,\"execution_optimistic\":false}\n\n";
-        let events = SseByteStream::parse_events(data);
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            Ok(BeaconEvent::Head(head)) => {
+        let data = b"event: head\ndata: {\"slot\":\"123\",\"block\":\"0xabc\",\"epoch_transition\":false,\"execution_optimistic\":false}";
+        match SseByteStream::parse_event(data) {
+            Some(Ok(BeaconEvent::Head(head))) => {
                 assert_eq!(head.slot, 123);
                 assert_eq!(head.block, "0xabc");
             }
@@ -200,11 +213,9 @@ mod tests {
 
     #[test]
     fn test_parse_payload_attributes_event() {
-        let data = b"event: payload_attributes\ndata: {\"version\":\"deneb\",\"data\":{\"proposal_slot\":\"456\",\"parent_block_hash\":\"0xdef\",\"payload_attributes\":{\"timestamp\":\"1000\",\"prev_randao\":\"0x123\",\"suggested_fee_recipient\":\"0xdead\"}}}\n\n";
-        let events = SseByteStream::parse_events(data);
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            Ok(BeaconEvent::PayloadAttributes(pa)) => {
+        let data = b"event: payload_attributes\ndata: {\"version\":\"deneb\",\"data\":{\"proposal_slot\":\"456\",\"parent_block_hash\":\"0xdef\",\"payload_attributes\":{\"timestamp\":\"1000\",\"prev_randao\":\"0x123\",\"suggested_fee_recipient\":\"0xdead\"}}}";
+        match SseByteStream::parse_event(data) {
+            Some(Ok(BeaconEvent::PayloadAttributes(pa))) => {
                 assert_eq!(pa.data.payload_attributes.timestamp, 1000);
             }
             _ => panic!("expected PayloadAttributes event"),
@@ -212,20 +223,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_multiple_events() {
-        let data = b"event: head\ndata: {\"slot\":\"1\",\"block\":\"0xa\",\"epoch_transition\":false,\"execution_optimistic\":false}\n\nevent: payload_attributes\ndata: {\"version\":\"deneb\",\"data\":{\"proposal_slot\":\"2\",\"parent_block_hash\":\"0xb\",\"payload_attributes\":{\"timestamp\":\"3\",\"prev_randao\":\"0xc\",\"suggested_fee_recipient\":\"0xd\"}}}\n\n";
-        let events = SseByteStream::parse_events(data);
-        assert_eq!(events.len(), 2);
-    }
-
-    #[test]
     fn test_skip_unknown_event() {
-        let data = b"event: unknown\ndata: {\"foo\":\"bar\"}\n\nevent: head\ndata: {\"slot\":\"7\",\"block\":\"0x7\",\"epoch_transition\":false,\"execution_optimistic\":false}\n\n";
-        let events = SseByteStream::parse_events(data);
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            Ok(BeaconEvent::Head(h)) => assert_eq!(h.slot, 7),
-            _ => panic!("expected Head event"),
-        }
+        let data = b"event: unknown\ndata: {\"foo\":\"bar\"}";
+        assert!(SseByteStream::parse_event(data).is_none());
     }
 }

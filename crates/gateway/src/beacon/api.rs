@@ -99,6 +99,12 @@ impl BeaconApi for BeaconNodeApi {
                 .map_err(|e| {
                     BeaconError::Sse(format!("hex decode genesis_validators_root: {e}"))
                 })?;
+            if gvr_bytes.len() != 32 {
+                return Err(BeaconError::Sse(format!(
+                    "genesis_validators_root length mismatch: expected 32 bytes, got {}",
+                    gvr_bytes.len()
+                )));
+            }
             let gvr = tree_hash::Hash256::from_slice(&gvr_bytes);
             let cv: [u8; 4] = hex_array_4(&resp.data.fork.current_version)?;
             Ok(ForkDatas::new(
@@ -124,8 +130,15 @@ impl BeaconApi for BeaconNodeApi {
         Box::pin(async move {
             let resp: ValidatorResponse = get_json(&client, &url).await?;
             Ok(KnownValidator {
-                index: resp.data.index.parse().unwrap_or(0),
-                balance: resp.data.balance.parse().unwrap_or(0),
+                index: resp.data.index.parse::<u64>().map_err(|e| {
+                    BeaconError::Sse(format!(
+                        "invalid validator index '{}': {}",
+                        resp.data.index, e
+                    ))
+                })?,
+                balance: resp.data.balance.parse::<u64>().map_err(|e| {
+                    BeaconError::Sse(format!("invalid balance '{}': {}", resp.data.balance, e))
+                })?,
                 status: resp.data.status,
             })
         })
