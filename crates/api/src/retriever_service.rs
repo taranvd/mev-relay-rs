@@ -20,14 +20,14 @@ pub struct RetrieverServiceImpl<S: Storage, A: Auctioneer> {
 }
 
 impl<S: Storage + Clone, A: Auctioneer + Clone> RetrieverServiceImpl<S, A> {
-    pub fn new(storage: S, auctioneer: A, signer: Arc<BlsSigner>) -> Self {
+    pub fn new(storage: S, auctioneer: A, signer: Arc<BlsSigner>, fork_datas: ForkDatas) -> Self {
         let auctioneer = Arc::new(auctioneer);
         let get_header_usecase = Arc::new(GetHeaderUseCase::new(
             storage.clone(),
             (*auctioneer).clone(),
             signer,
         ));
-        let unblind_usecase = Arc::new(UnblindBlockUseCase::new(storage, ForkDatas::default()));
+        let unblind_usecase = Arc::new(UnblindBlockUseCase::new(storage, fork_datas));
         Self {
             auctioneer,
             get_header_usecase,

@@ -138,11 +138,15 @@ pub async fn run_inner<F: std::future::Future<Output = ()>>(config: RelayConfig,
         (*auctioneer).clone(),
         fork_datas.clone(),
     );
-    let register_validator = RegisterValidatorUseCase::new((*storage).clone(), fork_datas);
+    let register_validator = RegisterValidatorUseCase::new((*storage).clone(), fork_datas.clone());
 
     let bidder = BidderServiceImpl::new(submit_bid);
-    let retriever =
-        RetrieverServiceImpl::new((*storage).clone(), (*auctioneer).clone(), signer.clone());
+    let retriever = RetrieverServiceImpl::new(
+        (*storage).clone(),
+        (*auctioneer).clone(),
+        signer.clone(),
+        fork_datas.clone(),
+    );
     let validator = ValidatorServiceImpl::new(register_validator);
 
     let (health_tx, health_rx) = tokio::sync::oneshot::channel::<()>();

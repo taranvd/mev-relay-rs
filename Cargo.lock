@@ -2801,10 +2801,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-metrics"
-version = "0.1.0"
-
-[[package]]
 name = "relay-usecase"
 version = "0.1.0"
 dependencies = [

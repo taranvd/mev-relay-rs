@@ -8,7 +8,7 @@ use relay_api::proto::retriever_service_client::RetrieverServiceClient;
 use relay_api::proto::validator_service_client::ValidatorServiceClient;
 use relay_app::{RelayConfig, run_inner};
 use relay_crypto::{
-    BlsPublicKey, BlsSecretKey, BlsSignature, DST, ForkDatas, ForkName, SignedRoot,
+    BlsPublicKey, BlsSecretKey, BlsSignature, DST, ForkData, ForkDatas, ForkName, SignedRoot,
 };
 use relay_entity::{B256, BidTrace};
 use tonic::Request;
@@ -245,6 +245,22 @@ fn init_logging() {
         .try_init();
 }
 
+fn blinded_block_signing_root(
+    slot: u64,
+    proposer_index: u64,
+    block_hash: B256,
+    domain: [u8; 32],
+) -> Vec<u8> {
+    let mut data = Vec::with_capacity(8 + 8 + 32 + 32);
+    data.extend_from_slice(&slot.to_le_bytes());
+    data.extend_from_slice(&proposer_index.to_le_bytes());
+    data.extend_from_slice(block_hash.0.as_ref());
+    let hash = alloy_primitives::keccak256(&data);
+    let mut root = hash.to_vec();
+    root.extend_from_slice(&domain);
+    alloy_primitives::keccak256(&root).to_vec()
+}
+
 #[tokio::test]
 async fn test_relay_full_flow() {
     init_logging();
@@ -339,6 +355,36 @@ async fn test_relay_full_flow() {
         assert!(
             !resp.signed_header.is_empty(),
             "retrieve should return signed header"
+        );
+    }
+    {
+        let mut client = RetrieverServiceClient::connect(endpoint.clone())
+            .await
+            .unwrap();
+        // Relay fetches zero-initialized fork data from the mock beacon
+        let proposer_domain =
+            ForkDatas::new(ForkData::default(), ForkData::default()).compute_proposer_domain();
+        let block_hash = B256(alloy_primitives::B256::default());
+        let root = blinded_block_signing_root(2, 1, block_hash, proposer_domain);
+        let sig_bytes = validator_sk.sign(&root, DST, &[]).to_bytes();
+        let req = relay_api::proto::SubmitBlindedBlockRequest {
+            slot: 2,
+            proposer_index: 1,
+            block_hash: block_hash.0.to_vec(),
+            signature: sig_bytes.to_vec(),
+        };
+        let resp = client
+            .submit_blinded_block(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(
+            !resp.execution_payload.is_empty(),
+            "submit_blinded_block should return execution payload"
+        );
+        assert!(
+            !resp.block_hash.is_empty(),
+            "submit_blinded_block should return block hash"
         );
     }
     shutdown_tx.send(()).ok();

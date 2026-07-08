@@ -18,7 +18,7 @@ members = [
     "crates/entity",
     "crates/gateway",
     "crates/health",
-    "crates/metrics",
+
     "crates/usecase"
 ]
 
@@ -38,7 +38,6 @@ relay-datastore = { path = "crates/datastore" }
 relay-entity = { path = "crates/entity" }
 relay-gateway = { path = "crates/gateway" }
 relay-health = { path = "crates/health" }
-relay-metrics = { path = "crates/metrics" }
 relay-usecase = { path = "crates/usecase" }
 
 # Serialization

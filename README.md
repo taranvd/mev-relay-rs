@@ -113,7 +113,6 @@ mev-relay-rs/
     ├── datastore/            # Data layer — Auctioneer (moka), Storage (in-memory)
     ├── api/                  # gRPC services (tonic) + proto definitions
     ├── health/               # HTTP health check endpoint
-    ├── metrics/              # Prometheus metrics server
     └── app/                  # Composition root — DI, CLI, Relay::run()
 ```
 
@@ -126,7 +125,6 @@ mev-relay-rs/
 | **datastore** | Data persistence layer with trait abstractions.                           | `Auctioneer` trait, `Storage` trait, `MemoryAuctioneer` (moka cache), `MemoryStorage`                                                             |
 | **api**       | gRPC transport layer — proto definitions + tonic service impls.           | `BidderService`, `RetrieverService`, `AuthService`, proto-entity conversions                                                                      |
 | **health**    | Minimal HTTP server for liveness/readiness probes.                        | Health check endpoint                                                                                                                             |
-| **metrics**   | Prometheus metrics collection and exposition.                             | `MetricsServer`, chain/relay metric gauges and counters                                                                                           |
 | **app**       | Composition root. Wires everything together and runs the relay.           | `Relay`, `RelayConfig`, `CliArgs`, `RelayService`                                                                                                 |
 
 ---
@@ -275,7 +273,6 @@ cargo run --release -- \
 | -------------------- | -------------------------- | ----------------------------------------------- |
 | `--grpc.port`        | `50051`                    | gRPC server port (builder/validator API)        |
 | `--http.port`        | `9063`                     | HTTP port (health check)                        |
-| `--metrics.port`     | `9090`                     | Prometheus metrics port                         |
 | `--beacon.url`       | `http://127.0.0.1:3500`    | Beacon node endpoint                            |
 | `--auth.url`         | `https://auth.example.com` | External auth service URL                       |
 | `--builders.enabled` | —                          | Comma-separated whitelisted builder BLS pubkeys |
@@ -309,7 +306,7 @@ Mock implementations (MockAuctioneer, MockStorage) are provided in the datastore
 | **Async Runtime** | tokio (multi-threaded)                                          |
 | **Storage**       | moka (concurrent cache with TTL), parking_lot (sync primitives) |
 | **Serialization** | serde / prost (protobuf)                                        |
-| **Observability** | tracing + OpenTelemetry, Prometheus metrics                     |
+| **Observability** | tracing + OpenTelemetry                                        |
 | **CLI**           | clap (derive API)                                               |
 | **Build**         | just (task runner), pre-commit hooks                            |
 
