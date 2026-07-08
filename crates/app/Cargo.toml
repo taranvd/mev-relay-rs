@@ -4,3 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+relay-datastore.workspace = true
+relay-entity.workspace = true
+relay-gateway.workspace = true
+
+futures.workspace = true
+tokio.workspace = true
+tracing.workspace = true
