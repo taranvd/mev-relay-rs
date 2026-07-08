@@ -32,6 +32,7 @@ pub struct RelayConfig {
     pub slots_per_epoch: u64,
     pub enabled_builders: Vec<relay_crypto::BlsPublicKey>,
     pub fork_datas: ForkDatas,
+    pub polling_interval_secs: u64,
 }
 
 impl TryFrom<CliArgs> for RelayConfig {
@@ -92,11 +93,19 @@ impl TryFrom<CliArgs> for RelayConfig {
             slots_per_epoch: args.slots_per_epoch,
             enabled_builders,
             fork_datas,
+            polling_interval_secs: 6,
         })
     }
 }
 
 pub async fn run(config: RelayConfig) {
+    let shutdown = async {
+        signal::ctrl_c().await.expect("failed to listen for ctrl-c");
+    };
+    run_inner(config, shutdown).await;
+}
+
+pub async fn run_inner<F: std::future::Future<Output = ()>>(config: RelayConfig, shutdown: F) {
     info!(target: "relay", "starting relay");
 
     let storage = Arc::new(MemoryStorage::new(config.enabled_builders));
@@ -155,11 +164,17 @@ pub async fn run(config: RelayConfig) {
     info!(target: "relay", port = config.http_port, "starting health check");
     tokio::spawn(serve_health(config.http_port));
 
-    let relay_service = RelayService::new(api, storage, beacon_handle, config.slots_per_epoch);
+    let relay_service = RelayService::new(
+        api,
+        storage,
+        beacon_handle,
+        config.slots_per_epoch,
+        config.polling_interval_secs,
+    );
     tokio::spawn(relay_service.run());
 
     info!(target: "relay", "relay started, waiting for shutdown signal");
-    signal::ctrl_c().await.expect("failed to listen for ctrl-c");
+    shutdown.await;
     info!(target: "relay", "shutting down");
     drop(health_tx);
 }
