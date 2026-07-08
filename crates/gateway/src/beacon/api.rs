@@ -66,6 +66,34 @@ impl BeaconNodeApi {
             url,
         }
     }
+
+    pub async fn fetch_head_slot(&self) -> Result<u64, BeaconError> {
+        let url = format!("{}eth/v1/beacon/headers/head", self.url);
+        let resp = self.client.get(&url).send().await.map_err(BeaconError::Http)?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(BeaconError::Api { status: status.as_u16(), body });
+        }
+        let body: serde_json::Value = resp.json().await.map_err(BeaconError::Deserialize)?;
+        let slot = body["data"]["header"]["message"]["slot"]
+            .as_str()
+            .ok_or_else(|| BeaconError::Sse("no slot in head response".into()))?
+            .parse::<u64>()
+            .map_err(|e| BeaconError::Sse(format!("slot parse failed: {e}")))?;
+        Ok(slot)
+    }
+
+    pub async fn subscribe_events(&self) -> Result<reqwest::Response, BeaconError> {
+        let url = format!("{}eth/v1/events?topics=head,payload_attributes", self.url);
+        let resp = self.client.get(&url).send().await.map_err(BeaconError::Http)?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(BeaconError::Api { status: status.as_u16(), body });
+        }
+        Ok(resp)
+    }
 }
 
 impl BeaconApi for BeaconNodeApi {

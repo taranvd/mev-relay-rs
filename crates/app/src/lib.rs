@@ -13,7 +13,7 @@ use relay_api::{
 };
 use relay_crypto::{BlsSecretKey, BlsSigner, ForkDatas, ForkName};
 use relay_datastore::{MemoryAuctioneer, MemoryStorage};
-use relay_gateway::{BeaconConnection, BeaconEventsClient, BeaconNodeApi, BeaconService};
+use relay_gateway::{BeaconNodeApi, BeaconService};
 use relay_health::serve_health;
 use relay_usecase::{RegisterValidatorUseCase, SubmitBidUseCase};
 use std::sync::Arc;
@@ -104,7 +104,7 @@ pub async fn run(config: RelayConfig) {
 
     let beacon_url = Url::parse(&config.beacon_url).expect("invalid beacon url");
     let api = BeaconNodeApi::new(beacon_url.clone());
-    let (beacon_service, beacon_handle) = BeaconService::new(api);
+    let (beacon_service, beacon_handle) = BeaconService::new(api.clone());
     tokio::spawn(beacon_service);
 
     let fork_datas = match beacon_handle.get_fork_data().await {
@@ -155,17 +155,13 @@ pub async fn run(config: RelayConfig) {
     info!(target: "relay", port = config.http_port, "starting health check");
     tokio::spawn(serve_health(config.http_port));
 
-    let beacon_client = Arc::new(BeaconEventsClient::new(beacon_url));
-    let event_stream = beacon_client.stream().await;
-
     let relay_service = RelayService::new(
+        api,
         storage,
         beacon_handle,
-        beacon_client,
         config.slots_per_epoch,
-        event_stream,
     );
-    tokio::spawn(relay_service);
+    tokio::spawn(relay_service.run());
 
     info!(target: "relay", "relay started, waiting for shutdown signal");
     signal::ctrl_c().await.expect("failed to listen for ctrl-c");

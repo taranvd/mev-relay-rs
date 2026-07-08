@@ -2699,6 +2699,7 @@ dependencies = [
  "relay-gateway",
  "relay-health",
  "relay-usecase",
+ "serde_json",
  "tokio",
  "tonic",
  "tracing",
