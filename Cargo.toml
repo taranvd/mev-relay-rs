@@ -18,7 +18,7 @@ members = [
     "crates/entity",
     "crates/gateway",
     "crates/health",
-    "crates/metrics",
+
     "crates/usecase"
 ]
 
@@ -38,7 +38,6 @@ relay-datastore = { path = "crates/datastore" }
 relay-entity = { path = "crates/entity" }
 relay-gateway = { path = "crates/gateway" }
 relay-health = { path = "crates/health" }
-relay-metrics = { path = "crates/metrics" }
 relay-usecase = { path = "crates/usecase" }
 
 # Serialization
@@ -153,15 +152,30 @@ num_cpus.workspace = true
 
 [dev-dependencies]
 # Relay workspace crates (for testing)
+relay-api.workspace = true
 relay-app.workspace = true
-relay-gateway.workspace = true
+relay-crypto.workspace = true
 relay-datastore.workspace = true
 relay-usecase.workspace = true
 relay-entity.workspace = true
+relay-gateway.workspace = true
 
 # Async (for asynchronous operations in tests)
 tokio.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+
+# Crypto
+blst.workspace = true
+
+# Types
+alloy-primitives.workspace = true
+ssz_types.workspace = true
+
+# Logging (for integration tests)
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 

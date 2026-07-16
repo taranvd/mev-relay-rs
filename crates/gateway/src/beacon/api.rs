@@ -190,14 +190,61 @@ impl BeaconApi for BeaconNodeApi {
 
     fn publish_block(
         &self,
-        _block: SignedBeaconBlockContent,
-        _submission_type: SubmissionType,
+        block: SignedBeaconBlockContent,
+        submission_type: SubmissionType,
     ) -> BoxedFuture<B256> {
+        let client = self.client.clone();
+        let url = format!("{}eth/v1/builder/blocks", self.url);
         Box::pin(async move {
-            Err(BeaconError::Api {
-                status: 501,
-                body: "publish_block not yet implemented".into(),
-            })
+            let execution_payload_json = serde_json::to_value(&block.body.execution_payload)
+                .map_err(|e| BeaconError::Sse(format!("serialization error: {e}")))?;
+
+            let body = serde_json::json!({
+                "message": {
+                    "slot": block.slot.to_string(),
+                    "proposer_index": block.proposer_index.to_string(),
+                    "parent_root": format!("0x{}", hex::encode(block.parent_root.0)),
+                    "state_root": format!("0x{}", hex::encode(block.state_root.0)),
+                    "body": {
+                        "execution_payload": execution_payload_json,
+                    }
+                },
+                "signature": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            });
+
+            let resp = client
+                .post(&url)
+                .header(
+                    "Content-Type",
+                    match submission_type {
+                        SubmissionType::Json => "application/json",
+                        SubmissionType::Ssz => "application/octet-stream",
+                    },
+                )
+                .json(&body)
+                .send()
+                .await
+                .map_err(BeaconError::Http)?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(BeaconError::Api {
+                    status: status.as_u16(),
+                    body,
+                });
+            }
+
+            let resp_body: serde_json::Value =
+                resp.json().await.map_err(BeaconError::Deserialize)?;
+            let block_root_bytes = resp_body["data"]
+                .as_str()
+                .and_then(|s| s.strip_prefix("0x"))
+                .and_then(|s| hex::decode(s).ok())
+                .ok_or_else(|| BeaconError::Sse("no block_root in response".into()))?;
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&block_root_bytes);
+            Ok(B256::from(arr))
         })
     }
 }

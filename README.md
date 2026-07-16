@@ -113,7 +113,6 @@ mev-relay-rs/
     ├── datastore/            # Data layer — Auctioneer (moka), Storage (in-memory)
     ├── api/                  # gRPC services (tonic) + proto definitions
     ├── health/               # HTTP health check endpoint
-    ├── metrics/              # Prometheus metrics server
     └── app/                  # Composition root — DI, CLI, Relay::run()
 ```
 
@@ -122,11 +121,10 @@ mev-relay-rs/
 | **crypto**    | BLS12-381 cryptography via `blst`. Innermost layer — zero workspace deps. | `BlsPublicKey`, `BlsSignature`, `BlsSecretKey`, `SignedRoot`, `ForkData`, `ForkDatas`                                                             |
 | **entity**    | Pure domain models. No I/O, no frameworks.                                | `BidTrace`, `BidSubmission`, `ExecutionPayload`, `HeadSlot`, `ValidatorRegistration`, `ProposerDuty`, `PayloadAttributes`, `BlindedBlockResponse` |
 | **usecase**   | Application business rules. Depends on traits from datastore/gateway.     | `SubmitBidUseCase`, `GetHeaderUseCase`, `RegisterValidatorUseCase`, `UnblindBlockUseCase`                                                         |
-| **gateway**   | Outbound adapters for external services.                                  | `BlsSigner`, `BeaconNodeApi`, `BeaconEventsClient`, `BeaconService`, `MbsAuth`                                                                    |
+| **gateway**   | Outbound adapters for external services.                                  | `BlsSigner`, `BeaconNodeApi`, `BeaconEventsClient`, `BeaconService`                                                                              |
 | **datastore** | Data persistence layer with trait abstractions.                           | `Auctioneer` trait, `Storage` trait, `MemoryAuctioneer` (moka cache), `MemoryStorage`                                                             |
-| **api**       | gRPC transport layer — proto definitions + tonic service impls.           | `BidderService`, `RetrieverService`, `AuthService`, proto-entity conversions                                                                      |
+| **api**       | gRPC transport layer — proto definitions + tonic service impls.           | `BidderService`, `RetrieverService`, `ValidatorService`, proto-entity conversions                                                                |
 | **health**    | Minimal HTTP server for liveness/readiness probes.                        | Health check endpoint                                                                                                                             |
-| **metrics**   | Prometheus metrics collection and exposition.                             | `MetricsServer`, chain/relay metric gauges and counters                                                                                           |
 | **app**       | Composition root. Wires everything together and runs the relay.           | `Relay`, `RelayConfig`, `CliArgs`, `RelayService`                                                                                                 |
 
 ---
@@ -152,17 +150,17 @@ Validators request the best available bid for their slot. The relay responds wit
 ```protobuf
 service RetrieverService {
   rpc Retrieve(RetrieveRequest) returns (stream RetrieveResponse);
+  rpc SubmitBlindedBlock(SubmitBlindedBlockRequest) returns (BlindedBlockResponse);
 }
 ```
 
-### AuthService — Identity Verification
+### ValidatorService — Registration
 
-Nonce-challenge + BLS signature verification produces a JWT token. Used to authenticate builders and validators before granting access to bid/retrieve streams.
+Validators register with the relay so that the relay knows their pubkey during duty discovery.
 
 ```protobuf
-service AuthService {
-  rpc Nonce(NonceRequest) returns (NonceResponse);
-  rpc Token(TokenRequest) returns (TokenResponse);
+service ValidatorService {
+  rpc RegisterValidator(RegisterValidatorRequest) returns (RegisterValidatorResponse);
 }
 ```
 
@@ -181,7 +179,7 @@ flowchart TD
 
     %% gRPC Layer
     BidderSvc[BidderService]
-    AuthSvc[AuthService]
+    ValSvc[ValidatorService]
     RetrieverSvc[RetrieverService]
 
     %% Use Cases
@@ -202,8 +200,9 @@ flowchart TD
 
     %% Flow
     Builder -->|gRPC Stream| BidderSvc
-    Validator -->|gRPC| AuthSvc
-    Validator -->|gRPC| RetrieverSvc
+    Validator -->|gRPC Register| ValSvc
+    Validator -->|gRPC Retrieve| RetrieverSvc
+    Validator -->|gRPC SubmitBlindedBlock| RetrieverSvc
 
     BidderSvc --> SubmitBid
     RetrieverSvc --> GetHeader
@@ -214,15 +213,13 @@ flowchart TD
     GetHeader --> Auctioneer
     GetHeader --> Signer
     Unblind --> Storage
-    Unblind --> BAPI
     RegVal --> Storage
-    RegVal --> BAPI
 
     Beacon -->|SSE head events| SSE
     SSE --> RelayLoop
     RelayLoop --> Storage
     RelayLoop --> BAPI
-    BAPI -->|POST blocks| Beacon
+    BAPI -->|poll sync/duties| Beacon
 ```
 
 ---
@@ -271,17 +268,18 @@ cargo run --release -- \
 
 ### CLI Options
 
-| Flag                 | Default                    | Description                                     |
-| -------------------- | -------------------------- | ----------------------------------------------- |
-| `--grpc.port`        | `50051`                    | gRPC server port (builder/validator API)        |
-| `--http.port`        | `9063`                     | HTTP port (health check)                        |
-| `--metrics.port`     | `9090`                     | Prometheus metrics port                         |
-| `--beacon.url`       | `http://127.0.0.1:3500`    | Beacon node endpoint                            |
-| `--auth.url`         | `https://auth.example.com` | External auth service URL                       |
-| `--builders.enabled` | —                          | Comma-separated whitelisted builder BLS pubkeys |
-| `--bls-secret-key`   | **required**               | Relay's BLS secret key for header signing       |
-| `--chain`            | `mainnet`                  | Network: mainnet, holesky, sepolia, goerli, dev |
-| `--epoch.slots`      | `32`                       | Slots per epoch                                 |
+| Flag                                            | Default                                                                    | Description                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
+| `--grpc.port`                                   | `50051`                                                                    | gRPC server port (builder/validator API)        |
+| `--http.port`                                   | `9063`                                                                     | HTTP port (health check)                        |
+| `--beacon.url`                                  | `http://127.0.0.1:3500`                                                   | Beacon node endpoint                            |
+| `--builders.enabled`                            | —                                                                          | Comma-separated whitelisted builder BLS pubkeys |
+| `--bls-secret-key`                              | **required**                                                               | Relay's BLS secret key for header signing       |
+| `--chain`                                       | `mainnet`                                                                  | Network: mainnet, holesky, sepolia, goerli, dev |
+| `--epoch.slots`                                 | `32`                                                                       | Slots per epoch                                 |
+| `--fork-data.genesis-version`                   | `0x00000000`                                                               | Genesis fork version                            |
+| `--fork-data.current-version`                   | `0x20000093`                                                               | Current fork version                            |
+| `--fork-data.genesis-validators-root`           | `0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95`      | Genesis validators root                         |
 
 ---
 
@@ -309,7 +307,7 @@ Mock implementations (MockAuctioneer, MockStorage) are provided in the datastore
 | **Async Runtime** | tokio (multi-threaded)                                          |
 | **Storage**       | moka (concurrent cache with TTL), parking_lot (sync primitives) |
 | **Serialization** | serde / prost (protobuf)                                        |
-| **Observability** | tracing + OpenTelemetry, Prometheus metrics                     |
+| **Observability** | tracing + OpenTelemetry                                        |
 | **CLI**           | clap (derive API)                                               |
 | **Build**         | just (task runner), pre-commit hooks                            |
 

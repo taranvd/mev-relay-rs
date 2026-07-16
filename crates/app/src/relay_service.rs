@@ -13,6 +13,7 @@ pub struct RelayService {
     storage: Arc<dyn Storage>,
     beacon_handle: BeaconHandle,
     slots_per_epoch: u64,
+    polling_interval: Duration,
 }
 
 impl RelayService {
@@ -21,12 +22,14 @@ impl RelayService {
         storage: Arc<dyn Storage>,
         beacon_handle: BeaconHandle,
         slots_per_epoch: u64,
+        polling_interval_secs: u64,
     ) -> Self {
         Self {
             bn_client,
             storage,
             beacon_handle,
             slots_per_epoch,
+            polling_interval: Duration::from_secs(polling_interval_secs),
         }
     }
 
@@ -202,7 +205,7 @@ impl RelayService {
     }
 
     async fn polling_loop(&self) {
-        let mut interval = tokio::time::interval(Duration::from_secs(6));
+        let mut interval = tokio::time::interval(self.polling_interval);
         loop {
             interval.tick().await;
             match self.bn_client.fetch_head_slot().await {

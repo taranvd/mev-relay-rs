@@ -2017,16 +2017,24 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 name = "mev-relay-rs"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
+ "blst",
  "clap",
+ "futures",
  "num_cpus",
+ "relay-api",
  "relay-app",
+ "relay-crypto",
  "relay-datastore",
  "relay-entity",
  "relay-gateway",
  "relay-usecase",
+ "ssz_types",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "tonic",
+ "tracing",
  "tracing-subscriber",
 ]
 
@@ -2791,10 +2799,6 @@ version = "0.1.0"
 dependencies = [
  "warp",
 ]
-
-[[package]]
-name = "relay-metrics"
-version = "0.1.0"
 
 [[package]]
 name = "relay-usecase"
